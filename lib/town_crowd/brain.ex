@@ -66,8 +66,13 @@ defmodule TownCrowd.Brain do
   """
 
   def reply(persona, context, memory, incoming, target) do
-    build(persona, context, memory, incoming,
-      "Reply to #{addr(target)} in ONE short, in-character line, and address them by name. Don't restate their message unless a brief quote is genuinely needed for context.")
+    build(
+      persona,
+      context,
+      memory,
+      incoming,
+      "Reply to #{addr(target)} in ONE short, in-character line, and address them by name. Don't restate their message unless a brief quote is genuinely needed for context."
+    )
     |> generate(persona, true)
     |> strip_prefix(persona.name)
     |> limit(persona)
@@ -75,8 +80,13 @@ defmodule TownCrowd.Brain do
 
   # React to the latest message — answer a question, or push back on a statement.
   def respond(persona, context, memory, target) do
-    build(persona, context, memory, nil,
-      "React to #{addr(target)}'s latest message, addressing them by name. If it's a question about the article, answer it from the article. If it's a statement, only chime in when you have a genuinely new point grounded in the article — a real disagreement, correction, or addition the article supports; if you'd just be agreeing, vibing, or restating, reply with nothing. Don't restate their message unless a brief quote is genuinely needed for context.")
+    build(
+      persona,
+      context,
+      memory,
+      nil,
+      "React to #{addr(target)}'s latest message, addressing them by name. If it's a question about the article, answer it from the article. If it's a statement, only chime in when you have a genuinely new point grounded in the article — a real disagreement, correction, or addition the article supports; if you'd just be agreeing, vibing, or restating, reply with nothing. Don't restate their message unless a brief quote is genuinely needed for context."
+    )
     |> generate(persona, true)
     |> strip_prefix(persona.name)
     |> limit(persona)
@@ -85,8 +95,13 @@ defmodule TownCrowd.Brain do
   # Someone invited you to keep going / talk more, with no concrete question. Don't
   # acknowledge — actually contribute a specific point about the article.
   def continue(persona, context, memory, target) do
-    build(persona, context, memory, nil,
-      "You've been invited to keep going. Make ONE concrete, specific point about the article — a real claim, detail, or implication, in your own voice, and address #{addr(target)}. Do NOT acknowledge or stall ('sure', 'ok', 'happy to', 'let me explain') and do NOT just restate what the article is about; say the actual thing.")
+    build(
+      persona,
+      context,
+      memory,
+      nil,
+      "You've been invited to keep going. Make ONE concrete, specific point about the article — a real claim, detail, or implication, in your own voice, and address #{addr(target)}. Do NOT acknowledge or stall ('sure', 'ok', 'happy to', 'let me explain') and do NOT just restate what the article is about; say the actual thing."
+    )
     |> generate(persona, true)
     |> strip_prefix(persona.name)
     |> limit(persona)
@@ -94,8 +109,13 @@ defmodule TownCrowd.Brain do
 
   # A brief self-introduction: who I am + my role/character.
   def introduce(persona) do
-    build(persona, nil, [], nil,
-      "Introduce yourself in ONE short line: your name is #{persona.name}, then your role or character in a few words. No greeting like 'hello everyone'.")
+    build(
+      persona,
+      nil,
+      [],
+      nil,
+      "Introduce yourself in ONE short line: your name is #{persona.name}, then your role or character in a few words. No greeting like 'hello everyone'."
+    )
     |> generate(persona)
     |> strip_prefix(persona.name)
     |> limit(persona)
@@ -103,8 +123,13 @@ defmodule TownCrowd.Brain do
 
   # Open or revive a quiet room.
   def kickoff(persona, context, memory) do
-    build(persona, context, memory, nil,
-      "The room's quiet. Open a thread with ONE genuine question or pointed take about the article.")
+    build(
+      persona,
+      context,
+      memory,
+      nil,
+      "The room's quiet. Open a thread with ONE genuine question or pointed take about the article."
+    )
     |> generate(persona)
     |> strip_prefix(persona.name)
     |> limit(persona)
@@ -140,10 +165,12 @@ defmodule TownCrowd.Brain do
     # DYNAMIC TAIL: the changing chat + this turn's instruction. Goes last so it never
     # disturbs the cached prefix above.
     user =
-      ["Recent chat (most recent last):\n" <> history,
-       incoming && "Someone said to you: #{incoming}",
-       instruction,
-       ground]
+      [
+        "Recent chat (most recent last):\n" <> history,
+        incoming && "Someone said to you: #{incoming}",
+        instruction,
+        ground
+      ]
       |> Enum.reject(&is_nil/1)
       |> Enum.join("\n\n")
 
@@ -195,13 +222,16 @@ defmodule TownCrowd.Brain do
       |> Enum.split_with(fn {_t, url} -> companion_link?(url, scene, scenes) end)
 
     list =
-      (Enum.map(companion, fn {t, u} -> "- [COMPANION ARTICLE — read this for the other piece] #{t}: #{u}" end) ++
+      (Enum.map(companion, fn {t, u} ->
+         "- [COMPANION ARTICLE — read this for the other piece] #{t}: #{u}"
+       end) ++
          Enum.map(other, fn {t, u} -> "- #{t}: #{u}" end))
       |> Enum.join("\n")
 
     body =
       if list == "",
-        do: "If a question needs detail this article doesn't cover, call read_url(a URL) or web_search(query) before you answer.",
+        do:
+          "If a question needs detail this article doesn't cover, call read_url(a URL) or web_search(query) before you answer.",
         else: "Links you can open with read_url(url):\n" <> list
 
     base =
@@ -249,7 +279,8 @@ defmodule TownCrowd.Brain do
       type: "function",
       function: %{
         name: "read_url",
-        description: "Fetch and read the full text of a web page — e.g. a link from the article, or a search result — to answer a question the article doesn't fully cover.",
+        description:
+          "Fetch and read the full text of a web page — e.g. a link from the article, or a search result — to answer a question the article doesn't fully cover.",
         parameters: %{
           type: "object",
           properties: %{url: %{type: "string", description: "The URL to read"}},
@@ -261,7 +292,8 @@ defmodule TownCrowd.Brain do
       type: "function",
       function: %{
         name: "web_search",
-        description: "Search the web for up-to-date information the article and its links don't cover. Returns the top results.",
+        description:
+          "Search the web for up-to-date information the article and its links don't cover. Returns the top results.",
         parameters: %{
           type: "object",
           properties: %{query: %{type: "string", description: "The search query"}},
@@ -277,7 +309,8 @@ defmodule TownCrowd.Brain do
       type: "function",
       function: %{
         name: "search_repo",
-        description: "Search this assistant's knowledge base (the project's source code and docs) for a term. Returns matching file paths and lines. Use it to find where something is defined or documented.",
+        description:
+          "Search this assistant's knowledge base (the project's source code and docs) for a term. Returns matching file paths and lines. Use it to find where something is defined or documented.",
         parameters: %{
           type: "object",
           properties: %{query: %{type: "string", description: "The term or phrase to search for"}},
@@ -289,55 +322,13 @@ defmodule TownCrowd.Brain do
       type: "function",
       function: %{
         name: "read_file",
-        description: "Read one file from the knowledge base by its path relative to the repo root (e.g. 'lib/foo.ex'). Use after search_repo to see full context.",
+        description:
+          "Read one file from the knowledge base by its path relative to the repo root (e.g. 'lib/foo.ex'). Use after search_repo to see full context.",
         parameters: %{
           type: "object",
           properties: %{path: %{type: "string", description: "Repo-relative file path"}},
           required: ["path"]
         }
-      }
-    }
-  ]
-
-  # same two tools in Cloudflare's flatter "traditional function calling" shape
-  @cf_web_tools [
-    %{
-      name: "read_url",
-      description: "Fetch and read the full text of a web page — e.g. a link from the article, or a search result — to answer a question the article doesn't fully cover.",
-      parameters: %{
-        type: "object",
-        properties: %{url: %{type: "string", description: "The URL to read"}},
-        required: ["url"]
-      }
-    },
-    %{
-      name: "web_search",
-      description: "Search the web for up-to-date information the article and its links don't cover. Returns the top results.",
-      parameters: %{
-        type: "object",
-        properties: %{query: %{type: "string", description: "The search query"}},
-        required: ["query"]
-      }
-    }
-  ]
-
-  @cf_repo_tools [
-    %{
-      name: "search_repo",
-      description: "Search this assistant's knowledge base (the project's source code and docs) for a term. Returns matching file paths and lines.",
-      parameters: %{
-        type: "object",
-        properties: %{query: %{type: "string", description: "The term or phrase to search for"}},
-        required: ["query"]
-      }
-    },
-    %{
-      name: "read_file",
-      description: "Read one file from the knowledge base by its repo-relative path (e.g. 'lib/foo.ex'). Use after search_repo.",
-      parameters: %{
-        type: "object",
-        properties: %{path: %{type: "string", description: "Repo-relative file path"}},
-        required: ["path"]
       }
     }
   ]
@@ -354,9 +345,11 @@ defmodule TownCrowd.Brain do
     @web_tools ++ if(knowledge_root(persona), do: @repo_tools, else: [])
   end
 
-  defp cf_tools(persona) do
-    @cf_web_tools ++ if(knowledge_root(persona), do: @cf_repo_tools, else: [])
-  end
+  # CF's "traditional function calling" docs describe a flatter shape, but the
+  # actual backend (vLLM, per its error trace) rejects it and demands the same
+  # OpenAI {type, function: {name, ...}} shape Ollama uses — verified live against
+  # the API, not from docs. So: identical tool specs for both backends.
+  defp cf_tools(persona), do: ollama_tools(persona)
 
   # Local models via Ollama (free, unlimited). Needs `ollama serve` running and the
   # model pulled. Returns text or nil (nil if Ollama is down → bot stays silent).
@@ -369,7 +362,8 @@ defmodule TownCrowd.Brain do
   end
 
   # tool budget exhausted — ask once more for a final answer with no tools
-  defp ollama_chat(base, model, messages, _specs, root, 0), do: ollama_chat(base, model, messages, [], root, -1)
+  defp ollama_chat(base, model, messages, _specs, root, 0),
+    do: ollama_chat(base, model, messages, [], root, -1)
 
   defp ollama_chat(base, model, messages, specs, root, budget) do
     body =
@@ -395,7 +389,9 @@ defmodule TownCrowd.Brain do
         nil
     end
   rescue
-    e -> Logger.warning("ollama crash: #{inspect(e)}"); nil
+    e ->
+      Logger.warning("ollama crash: #{inspect(e)}")
+      nil
   end
 
   defp maybe_put_tools(body, []), do: body
@@ -435,12 +431,17 @@ defmodule TownCrowd.Brain do
         {:calls, calls} ->
           results =
             Enum.map_join(calls, "\n\n", fn c ->
-              name = c["name"]
-              Logger.info("bot tool (cf): #{name} #{inspect(c["arguments"])}")
-              "#{name}: #{exec_tool(name, c["arguments"] || %{}, root)}"
+              name = cf_call_name(c)
+              args = cf_call_args(c)
+              Logger.info("bot tool (cf): #{name} #{inspect(args)}")
+              "#{name}: #{exec_tool(name, args, root)}"
             end)
 
-          followup = user <> "\n\nTool results:\n" <> results <> "\n\nNow give your reply, grounded in these results and the article."
+          followup =
+            user <>
+              "\n\nTool results:\n" <>
+              results <> "\n\nNow give your reply, grounded in these results and the article."
+
           msgs2 = [%{role: "system", content: system}, %{role: "user", content: followup}]
 
           case cf_run(account, token, model, msgs2, nil, affinity) do
@@ -456,8 +457,32 @@ defmodule TownCrowd.Brain do
       end
     end
   rescue
-    e -> Logger.warning("CF crash: #{inspect(e)}"); nil
+    e ->
+      Logger.warning("CF crash: #{inspect(e)}")
+      nil
   end
+
+  # CF tool calls come back OpenAI-shaped ({"function" => {"name", "arguments"}},
+  # arguments as a JSON string) — handle that and the older flat shape defensively,
+  # since we've already been burned once by docs not matching the live API.
+  defp cf_call_name(%{"function" => %{"name" => name}}), do: name
+  defp cf_call_name(%{"name" => name}), do: name
+  defp cf_call_name(_), do: "unknown"
+
+  defp cf_call_args(%{"function" => %{"arguments" => args}}), do: cf_decode_args(args)
+  defp cf_call_args(%{"arguments" => args}), do: cf_decode_args(args)
+  defp cf_call_args(_), do: %{}
+
+  defp cf_decode_args(args) when is_map(args), do: args
+
+  defp cf_decode_args(args) when is_binary(args) do
+    case Jason.decode(args) do
+      {:ok, map} when is_map(map) -> map
+      _ -> %{}
+    end
+  end
+
+  defp cf_decode_args(_), do: %{}
 
   defp cf_run(account, token, model, messages, tools, affinity) do
     url = "https://api.cloudflare.com/client/v4/accounts/#{account}/ai/run/#{model}"
@@ -465,7 +490,13 @@ defmodule TownCrowd.Brain do
     body = if tools, do: Map.put(body, :tools, tools), else: body
     headers = [{"x-session-affinity", "crowd-#{affinity}"}]
 
-    case Req.post(url, auth: {:bearer, token}, json: body, headers: headers, receive_timeout: @timeout, retry: false) do
+    case Req.post(url,
+           auth: {:bearer, token},
+           json: body,
+           headers: headers,
+           receive_timeout: @timeout,
+           retry: false
+         ) do
       {:ok, %{status: 200, body: %{"result" => %{"tool_calls" => calls}}}}
       when is_list(calls) and calls != [] ->
         {:calls, calls}
@@ -488,12 +519,18 @@ defmodule TownCrowd.Brain do
       ctx = ReqLLM.Context.new([ReqLLM.Context.system(system), ReqLLM.Context.user(user)])
 
       case ReqLLM.generate_text(model, ctx, max_tokens: @max_tokens) do
-        {:ok, resp} -> resp |> ReqLLM.Response.text() |> clip()
-        {:error, reason} -> Logger.warning("req_llm #{model}: #{inspect(reason)}"); nil
+        {:ok, resp} ->
+          resp |> ReqLLM.Response.text() |> clip()
+
+        {:error, reason} ->
+          Logger.warning("req_llm #{model}: #{inspect(reason)}")
+          nil
       end
     end
   rescue
-    e -> Logger.warning("req_llm crash: #{inspect(e)}"); nil
+    e ->
+      Logger.warning("req_llm crash: #{inspect(e)}")
+      nil
   end
 
   @provider_keys %{
@@ -552,8 +589,10 @@ defmodule TownCrowd.Brain do
     s =
       text
       |> to_string()
-      |> String.replace(~r/[…]+/u, ".")   # ellipsis char -> period
-      |> String.replace(~r/\.{2,}/, ".")  # "..." (and longer) -> "."
+      # ellipsis char -> period
+      |> String.replace(~r/[…]+/u, ".")
+      # "..." (and longer) -> "."
+      |> String.replace(~r/\.{2,}/, ".")
       |> String.trim()
 
     cond do
