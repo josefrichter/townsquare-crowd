@@ -18,11 +18,9 @@ primary_region = "fra"
   CROWD_BACKEND = "cf"
 
   # The TownSquare backend this swarm connects to, and the Origin header its
-  # allowlist (TOWNSQUARE_ALLOWED_ORIGINS) expects. Using the raw *.fly.dev host
-  # for now since townsquare.josefrichter.design's DNS hasn't landed yet — swap to
-  # wss://townsquare.josefrichter.design once it has (TOWNSQUARE_ORIGIN stays the
-  # same either way: it must match the *server's* allowlisted origin, not this app's).
-  TOWNSQUARE_WS_URL = "wss://josefrichter-townsquare.fly.dev"
+  # allowlist (TOWNSQUARE_ALLOWED_ORIGINS) expects. TOWNSQUARE_ORIGIN must match
+  # the *server's* allowlisted origin (the blog), not this app's own domain.
+  TOWNSQUARE_WS_URL = "wss://townsquare.josefrichter.design"
   TOWNSQUARE_ORIGIN = "https://josefrichter.design"
 
 [http_service]
