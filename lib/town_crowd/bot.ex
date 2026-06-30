@@ -102,6 +102,10 @@ defmodule TownCrowd.Bot do
       peers: %{},
       names: %{},
       peers_typing: MapSet.new(),
+      # no human in the room yet → starts asleep: frozen in place, 💤 marker, no
+      # autonomous chatter. `sync_awake/1` flips this (and tells the room) the
+      # moment a human peer shows up or the last one leaves.
+      awake: false,
       respond_committing?: false,
       claims: %{},
       shadows: %{},
@@ -135,10 +139,12 @@ defmodule TownCrowd.Bot do
 
   @impl true
   def handle_info(:ws_connected, st) do
+    # starts asleep (st.awake: false) until the "hello" that follows reveals
+    # whether a human's already in the room
     Socket.send_msg(st.sock, %{
       type: "init",
       browserId: st.browser_id,
-      displayName: display_name(st.persona),
+      displayName: sleep_display_name(st.persona),
       color: st.color,
       x: st.x
     })
@@ -156,25 +162,38 @@ defmodule TownCrowd.Bot do
     ps = Map.get(f, "peers", []) |> Enum.filter(&is_map/1)
     peers = for p <- ps, into: %{}, do: {p["id"], p["x"]}
     names = for p <- ps, into: %{}, do: {p["id"], name_or(p["displayName"])}
-    {:noreply, %{st | secret: Map.get(f, "browserSecret", st.secret), peers: peers, names: names}}
+
+    {:noreply,
+     sync_awake(%{
+       st
+       | secret: Map.get(f, "browserSecret", st.secret),
+         peers: peers,
+         names: names
+     })}
   end
 
-  def handle_info({:frame, %{"type" => "join", "peer" => %{"id" => id, "x" => x} = p}}, st),
-    do:
-      {:noreply,
-       %{
-         st
-         | peers: Map.put(st.peers, id, x),
-           names: Map.put(st.names, id, name_or(p["displayName"]))
-       }}
+  def handle_info({:frame, %{"type" => "join", "peer" => %{"id" => id, "x" => x} = p}}, st) do
+    st = %{
+      st
+      | peers: Map.put(st.peers, id, x),
+        names: Map.put(st.names, id, name_or(p["displayName"]))
+    }
+
+    {:noreply, sync_awake(st)}
+  end
 
   def handle_info({:frame, %{"type" => "profile", "id" => id} = f}, st),
     do: {:noreply, %{st | names: Map.put(st.names, id, name_or(f["displayName"]))}}
 
-  def handle_info({:frame, %{"type" => "leave", "id" => id}}, st),
-    do:
-      {:noreply,
-       %{st | peers: Map.delete(st.peers, id), peers_typing: MapSet.delete(st.peers_typing, id)}}
+  def handle_info({:frame, %{"type" => "leave", "id" => id}}, st) do
+    st = %{
+      st
+      | peers: Map.delete(st.peers, id),
+        peers_typing: MapSet.delete(st.peers_typing, id)
+    }
+
+    {:noreply, sync_awake(st)}
+  end
 
   def handle_info({:frame, %{"type" => "move", "id" => id, "x" => x}}, st),
     do: {:noreply, put_in(st.peers[id], x)}
@@ -231,8 +250,11 @@ defmodule TownCrowd.Bot do
           schedule_intro(st)
 
         # react to overheard chat, unless the room's calm, the bots have been
-        # ping-ponging too long, or this bot is staying quiet this round (reticence)
-        mentions == [] and not calm?(st) and not chatter_maxed?(st) and not reticent?(st) ->
+        # ping-ponging too long, this bot is staying quiet this round (reticence),
+        # or there's no human around to read it (bot-to-bot reacting to bot-to-bot
+        # is the chatter that burns CF neurons fastest with nobody watching)
+        mentions == [] and st.awake and not calm?(st) and not chatter_maxed?(st) and
+            not reticent?(st) ->
           maybe_consider(st)
 
         true ->
@@ -342,9 +364,14 @@ defmodule TownCrowd.Bot do
 
   def handle_info(:kickoff_check, st) do
     schedule_kickoff_check()
+    # peer "leave" frames are the normal wake/sleep trigger, but this periodic
+    # check is the backstop in case one's ever missed.
+    st = sync_awake(st)
 
-    # assistants wait to be asked — they don't open threads on a quiet page
-    if not assistant?(st) and not calm?(st) and not someone_typing?(st) and
+    # assistants wait to be asked — they don't open threads on a quiet page.
+    # Everyone else needs a human actually in the room: with nobody to read it,
+    # a "quiet room" kickoff is just bot-to-bot chatter burning CF neurons.
+    if not assistant?(st) and st.awake and not calm?(st) and not someone_typing?(st) and
          now() - st.last_msg_at > @quiet_kickoff_ms and not pending_route?(st, :kickoff) do
       {:noreply, think(st, :kickoff, fn -> Brain.kickoff(st.persona, st.context, st.memory) end)}
     else
@@ -354,7 +381,9 @@ defmodule TownCrowd.Bot do
 
   def handle_info(:step, st) do
     schedule_step()
-    {:noreply, advance(st)}
+    # asleep (no human around): freeze in place rather than wander with nobody
+    # to talk to — a bot that can't/won't speak shouldn't look like it's busy.
+    if st.awake, do: {:noreply, advance(st)}, else: {:noreply, st}
   end
 
   def handle_info(:introduce, st) do
@@ -580,6 +609,43 @@ defmodule TownCrowd.Bot do
 
   defp calm?(st), do: now() < st.calm_until
 
+  # A peer counts as human iff its name lacks the 🤖 marker — same rule used for
+  # incoming "say" frames. A peer with no profile yet ("someone") reads as human
+  # too, same reasoning: presumed human until proven bot.
+  defp human_present?(st),
+    do:
+      Enum.any?(st.peers, fn {id, _x} -> not String.contains?(Map.get(st.names, id, ""), "🤖") end)
+
+  # Wake/sleep on a human arriving/leaving: no-op unless the state actually flips,
+  # so this is safe to call from every peer-list-changing frame handler.
+  defp sync_awake(st) do
+    case human_present?(st) do
+      true when not st.awake -> wake(st)
+      false when st.awake -> sleep(st)
+      _ -> st
+    end
+  end
+
+  defp wake(st) do
+    Socket.send_msg(st.sock, %{
+      type: "profile",
+      displayName: display_name(st.persona),
+      color: st.color
+    })
+
+    %{st | awake: true}
+  end
+
+  defp sleep(st) do
+    Socket.send_msg(st.sock, %{
+      type: "profile",
+      displayName: sleep_display_name(st.persona),
+      color: st.color
+    })
+
+    %{st | awake: false}
+  end
+
   defp assistant?(st), do: Map.get(st.persona, :mode, :regular) == :assistant
 
   # bots have gone back and forth too many times without a human — let it rest
@@ -689,6 +755,8 @@ defmodule TownCrowd.Bot do
   end
 
   defp display_name(p), do: String.slice("🤖 @" <> p.handle, 0, 18)
+  # asleep marker — keeps the 🤖 so bot-detection (human_present?) still works
+  defp sleep_display_name(p), do: String.slice("🤖💤@" <> p.handle, 0, 18)
   defp clamp(x), do: x |> max(@min_x) |> min(@max_x)
   defp rand_x, do: @min_x + :rand.uniform() * (@max_x - @min_x)
   defp gen_id, do: :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
