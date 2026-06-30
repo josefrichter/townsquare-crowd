@@ -44,8 +44,14 @@ defmodule TownCrowd.Bot do
   @consider_jitter 7_000
   @cooldown_ms 26_000
   # after this many bot-to-bot turns with no human, let the thread rest until a human
-  # speaks (or a quiet-room kickoff) — stops two bots ping-ponging forever
-  @bot_streak_max 2
+  # speaks (or a quiet-room kickoff) — stops two bots ping-ponging forever.
+  # Dropping this to 2 (briefly) was the wrong fix for "too fast": it starved out
+  # Brain.respond — the path that actually answers/engages — in favor of repeated
+  # Brain.kickoff calls once chatter_maxed? tripped, which has no instruction to
+  # engage with an unanswered question, just to open a new one. Slower jitter/cooldown
+  # above is what actually fixed the pacing; this is back to its original value so
+  # bots get enough turns to actually respond to each other again.
+  @bot_streak_max 4
   @quiet_kickoff_ms 45_000
   @kickoff_check_ms 15_000
   @calm_ms 45_000

@@ -128,7 +128,10 @@ defmodule TownCrowd.Brain do
       context,
       memory,
       nil,
-      "The room's quiet. Open a thread with ONE genuine question or pointed take about the article."
+      "The room's quiet. If the recent chat above has a genuine open question nobody " <>
+        "answered yet, answer THAT instead of asking something new — engaging with what's " <>
+        "already there beats starting another thread. Otherwise, open a new thread with " <>
+        "ONE genuine question or pointed take about the article."
     )
     |> generate(persona)
     |> strip_prefix(persona.name)
