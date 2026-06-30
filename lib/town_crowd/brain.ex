@@ -48,6 +48,23 @@ defmodule TownCrowd.Brain do
   let it rest (reply with nothing) instead of dragging it on.
   """
 
+  @assistant_rules """
+  You are a friendly, knowledgeable guide embedded on this website, here to help \
+  visitors with genuine questions about the topic, product, or article above. Answer \
+  accurately and concisely in a warm, human voice — never corporate support-speak. \
+  Ground every answer in what you actually know: the page above and anything you can \
+  look up with your tools (read a linked page, search). Use your tools to look \
+  something up before answering when it would help, rather than guessing. If you're \
+  unsure or it's genuinely not covered, say so plainly and point them somewhere useful \
+  instead of inventing — never make up a fact, name, or number. Prefer specifics over \
+  generalities. No preamble or filler ("great question", "happy to help", "let me \
+  explain", "as an AI") — lead with the answer. No emoji, no ellipses ("…" or "..."): \
+  finish thoughts with a period. Address the person by name when you know it. Keep it \
+  short — usually a sentence or two; expand only when the question genuinely needs it. \
+  If a question is outside your area, hand off to the right specialist by @name rather \
+  than guessing.
+  """
+
   def reply(persona, context, memory, incoming, target) do
     build(persona, context, memory, incoming,
       "Reply to #{addr(target)} in ONE short, in-character line, and address them by name. Don't restate their message unless a brief quote is genuinely needed for context.")
@@ -98,7 +115,7 @@ defmodule TownCrowd.Brain do
   def summarize(persona, topic, rows) do
     chat = Enum.map_join(rows, "\n", &"#{&1.speaker}: #{&1.text}")
 
-    {persona.system <> "\n" <> @house_rules,
+    {persona.system <> "\n" <> rules_for(persona),
      "In one line, recap what was said about \"#{topic}\":\n#{chat}"}
     |> generate(persona)
     |> strip_prefix(persona.name)
@@ -114,11 +131,11 @@ defmodule TownCrowd.Brain do
     # this first and byte-stable is what lets the big article context be reused for
     # free on every turn instead of re-billed.
     system =
-      [persona.system, @house_rules, article_block(context), link_hint(persona)]
+      [persona.system, rules_for(persona), article_block(persona, context), link_hint(persona)]
       |> Enum.reject(&is_nil/1)
       |> Enum.join("\n\n")
 
-    ground = context && "Reminder: stay on what the article actually says. If you can't ground your reply in the article, reply with nothing."
+    ground = context && ground_reminder(persona)
 
     # DYNAMIC TAIL: the changing chat + this turn's instruction. Goes last so it never
     # disturbs the cached prefix above.
@@ -133,15 +150,44 @@ defmodule TownCrowd.Brain do
     {system, user}
   end
 
-  defp article_block(nil), do: nil
+  defp article_block(_persona, nil), do: nil
 
-  defp article_block(context),
-    do: "THE ARTICLE you are all sitting under — this is the ONLY topic, ground every reply in it:\n\"\"\"\n#{context}\n\"\"\"\n"
+  defp article_block(persona, context) do
+    case mode(persona) do
+      :assistant ->
+        "THE PAGE you're helping visitors with — your main reference (you may also use your tools for more):\n\"\"\"\n#{context}\n\"\"\"\n"
+
+      _ ->
+        "THE ARTICLE you are all sitting under — this is the ONLY topic, ground every reply in it:\n\"\"\"\n#{context}\n\"\"\"\n"
+    end
+  end
+
+  defp ground_reminder(persona) do
+    case mode(persona) do
+      :assistant ->
+        "Reminder: answer from the page and your tools. If it's genuinely not covered, say so plainly and point them somewhere useful — never invent a fact, name, or number."
+
+      _ ->
+        "Reminder: stay on what the article actually says. If you can't ground your reply in the article, reply with nothing."
+    end
+  end
+
+  defp mode(persona), do: Map.get(persona, :mode, :regular)
+
+  # Two registers. Regulars (the demo crowd) hang out and discuss the article;
+  # assistants are helpful guides embedded on a site to answer real questions. Both
+  # share the hard constraints (grounded, no filler, no emoji/ellipses, conclude).
+  defp rules_for(persona) do
+    case mode(persona) do
+      :assistant -> @assistant_rules
+      _ -> @house_rules
+    end
+  end
 
   # tool-capable bots get told which links they can pull up, plus how to reach the web.
   # The companion article (a link to another scene) is surfaced first and labelled, so a
   # "check the other article" question reads the right page instead of the repo, etc.
-  defp link_hint(%{tools: true, site_key: scene}) do
+  defp link_hint(%{tools: true, site_key: scene} = persona) do
     scenes = Application.get_env(:town_crowd, :articles, %{}) |> Map.keys()
 
     {companion, other} =
@@ -158,8 +204,16 @@ defmodule TownCrowd.Brain do
         do: "If a question needs detail this article doesn't cover, call read_url(a URL) or web_search(query) before you answer.",
         else: "Links you can open with read_url(url):\n" <> list
 
-    body <>
-      "\nYou may also web_search(query) for things none of these cover. IMPORTANT: if someone asks you to read a link, check the companion/other article, look something up, or search — actually CALL the tool first, then answer from what it returns; don't answer from memory and don't say you couldn't find it without reading. Only after you've read a page and it genuinely doesn't contain the answer, say so plainly — never guess a name or fact. Keep your reply short."
+    base =
+      body <>
+        "\nYou may also web_search(query) for things none of these cover. IMPORTANT: if someone asks you to read a link, check the companion/other article, look something up, or search — actually CALL the tool first, then answer from what it returns; don't answer from memory and don't say you couldn't find it without reading. Only after you've read a page and it genuinely doesn't contain the answer, say so plainly — never guess a name or fact. Keep your reply short."
+
+    if knowledge_root(persona) do
+      base <>
+        "\nYou ALSO have a knowledge base of this project's full source code and docs. For any question about how the project actually works, call search_repo(query) to find the relevant files, then read_file(path) to read them, and answer from what you find — don't guess about the code."
+    else
+      base
+    end
   end
 
   defp link_hint(_), do: nil
@@ -178,10 +232,10 @@ defmodule TownCrowd.Brain do
   defp generate(prompt, persona, tools? \\ false)
 
   defp generate({system, user}, %{model: "cf:" <> model} = persona, tools?),
-    do: cloudflare(model, system, user, persona.handle, tools_enabled?(persona, tools?))
+    do: cloudflare(model, system, user, persona.handle, persona, tools_enabled?(persona, tools?))
 
   defp generate({system, user}, %{model: "ollama:" <> model} = persona, tools?),
-    do: ollama(model, system, user, tools_enabled?(persona, tools?))
+    do: ollama(model, system, user, persona, tools_enabled?(persona, tools?))
 
   defp generate({system, user}, %{model: model}, _tools?),
     do: req_llm(model, system, user)
@@ -217,6 +271,34 @@ defmodule TownCrowd.Brain do
     }
   ]
 
+  # repo/corpus tools — only offered to personas with a :knowledge dir (Ollama shape)
+  @repo_tools [
+    %{
+      type: "function",
+      function: %{
+        name: "search_repo",
+        description: "Search this assistant's knowledge base (the project's source code and docs) for a term. Returns matching file paths and lines. Use it to find where something is defined or documented.",
+        parameters: %{
+          type: "object",
+          properties: %{query: %{type: "string", description: "The term or phrase to search for"}},
+          required: ["query"]
+        }
+      }
+    },
+    %{
+      type: "function",
+      function: %{
+        name: "read_file",
+        description: "Read one file from the knowledge base by its path relative to the repo root (e.g. 'lib/foo.ex'). Use after search_repo to see full context.",
+        parameters: %{
+          type: "object",
+          properties: %{path: %{type: "string", description: "Repo-relative file path"}},
+          required: ["path"]
+        }
+      }
+    }
+  ]
+
   # same two tools in Cloudflare's flatter "traditional function calling" shape
   @cf_web_tools [
     %{
@@ -239,29 +321,67 @@ defmodule TownCrowd.Brain do
     }
   ]
 
+  @cf_repo_tools [
+    %{
+      name: "search_repo",
+      description: "Search this assistant's knowledge base (the project's source code and docs) for a term. Returns matching file paths and lines.",
+      parameters: %{
+        type: "object",
+        properties: %{query: %{type: "string", description: "The term or phrase to search for"}},
+        required: ["query"]
+      }
+    },
+    %{
+      name: "read_file",
+      description: "Read one file from the knowledge base by its repo-relative path (e.g. 'lib/foo.ex'). Use after search_repo.",
+      parameters: %{
+        type: "object",
+        properties: %{path: %{type: "string", description: "Repo-relative file path"}},
+        required: ["path"]
+      }
+    }
+  ]
+
+  # a persona with a configured corpus also gets the repo tools (search_repo/read_file)
+  defp knowledge_root(persona) do
+    case Map.get(persona, :knowledge) do
+      path when is_binary(path) and path != "" -> path
+      _ -> nil
+    end
+  end
+
+  defp ollama_tools(persona) do
+    @web_tools ++ if(knowledge_root(persona), do: @repo_tools, else: [])
+  end
+
+  defp cf_tools(persona) do
+    @cf_web_tools ++ if(knowledge_root(persona), do: @cf_repo_tools, else: [])
+  end
+
   # Local models via Ollama (free, unlimited). Needs `ollama serve` running and the
   # model pulled. Returns text or nil (nil if Ollama is down → bot stays silent).
-  # When `tools?`, runs a small tool-call loop so the model can read links / search.
-  defp ollama(model, system, user, tools?) do
+  # When enabled, runs a small tool-call loop so the model can read links / search.
+  defp ollama(model, system, user, persona, enabled?) do
     base = System.get_env("OLLAMA_HOST") || "http://localhost:11434"
     messages = [%{role: "system", content: system}, %{role: "user", content: user}]
-    ollama_chat(base, model, messages, tools?, 3)
+    specs = if enabled?, do: ollama_tools(persona), else: []
+    ollama_chat(base, model, messages, specs, knowledge_root(persona), 3)
   end
 
   # tool budget exhausted — ask once more for a final answer with no tools
-  defp ollama_chat(base, model, messages, _tools?, 0), do: ollama_chat(base, model, messages, false, -1)
+  defp ollama_chat(base, model, messages, _specs, root, 0), do: ollama_chat(base, model, messages, [], root, -1)
 
-  defp ollama_chat(base, model, messages, tools?, budget) do
+  defp ollama_chat(base, model, messages, specs, root, budget) do
     body =
       %{model: model, stream: false, messages: messages, options: %{num_predict: @max_tokens}}
-      |> maybe_put_tools(tools?)
+      |> maybe_put_tools(specs)
 
     # generous timeout: the first call to a model cold-loads it into memory
     case Req.post(base <> "/api/chat", json: body, receive_timeout: 120_000, retry: false) do
       {:ok, %{status: 200, body: %{"message" => %{"tool_calls" => calls} = msg}}}
       when is_list(calls) and calls != [] and budget > 0 ->
-        results = Enum.map(calls, &run_tool/1)
-        ollama_chat(base, model, messages ++ [msg | results], tools?, budget - 1)
+        results = Enum.map(calls, &run_tool(&1, root))
+        ollama_chat(base, model, messages ++ [msg | results], specs, root, budget - 1)
 
       {:ok, %{status: 200, body: %{"message" => %{"content" => text}}}} ->
         clip(text)
@@ -278,27 +398,29 @@ defmodule TownCrowd.Brain do
     e -> Logger.warning("ollama crash: #{inspect(e)}"); nil
   end
 
-  defp maybe_put_tools(body, true), do: Map.put(body, :tools, @web_tools)
-  defp maybe_put_tools(body, _), do: body
+  defp maybe_put_tools(body, []), do: body
+  defp maybe_put_tools(body, specs), do: Map.put(body, :tools, specs)
 
   # run one tool call and wrap its output as a `tool` message for the next round
-  defp run_tool(%{"function" => %{"name" => name, "arguments" => args}}) do
+  defp run_tool(%{"function" => %{"name" => name, "arguments" => args}}, root) do
     Logger.info("bot tool: #{name} #{inspect(args)}")
-    %{role: "tool", content: exec_tool(name, args)}
+    %{role: "tool", content: exec_tool(name, args, root)}
   end
 
-  defp run_tool(_), do: %{role: "tool", content: "malformed tool call"}
+  defp run_tool(_, _root), do: %{role: "tool", content: "malformed tool call"}
 
-  defp exec_tool("read_url", %{"url" => url}), do: TownCrowd.Web.read(url)
-  defp exec_tool("web_search", %{"query" => q}), do: TownCrowd.Web.search(q)
-  defp exec_tool(name, _args), do: "unknown tool: #{name}"
+  defp exec_tool("read_url", %{"url" => url}, _root), do: TownCrowd.Web.read(url)
+  defp exec_tool("web_search", %{"query" => q}, _root), do: TownCrowd.Web.search(q)
+  defp exec_tool("search_repo", %{"query" => q}, root), do: TownCrowd.Knowledge.search(root, q)
+  defp exec_tool("read_file", %{"path" => p}, root), do: TownCrowd.Knowledge.read(root, p)
+  defp exec_tool(name, _args, _root), do: "unknown tool: #{name}"
 
   # Cloudflare Workers AI (REST). `affinity` is a stable per-bot id sent as
   # x-session-affinity so repeat calls route to the same instance and HIT the prefix
   # cache (the big static article prefix is reused, not re-billed). When `tools?`, we
   # do a bounded two-step: offer the tools, run any the model picks, then re-ask once
   # with the results folded in (avoids depending on CF's multi-turn tool format).
-  defp cloudflare(model, system, user, affinity, tools?) do
+  defp cloudflare(model, system, user, affinity, persona, enabled?) do
     account = System.get_env("CF_ACCOUNT_ID")
     token = System.get_env("CF_API_TOKEN")
 
@@ -306,14 +428,16 @@ defmodule TownCrowd.Brain do
       nil
     else
       msgs = [%{role: "system", content: system}, %{role: "user", content: user}]
+      specs = if enabled?, do: cf_tools(persona), else: nil
+      root = knowledge_root(persona)
 
-      case cf_run(account, token, model, msgs, tools? && @cf_web_tools, affinity) do
+      case cf_run(account, token, model, msgs, specs, affinity) do
         {:calls, calls} ->
           results =
             Enum.map_join(calls, "\n\n", fn c ->
               name = c["name"]
               Logger.info("bot tool (cf): #{name} #{inspect(c["arguments"])}")
-              "#{name}: #{exec_tool(name, c["arguments"] || %{})}"
+              "#{name}: #{exec_tool(name, c["arguments"] || %{}, root)}"
             end)
 
           followup = user <> "\n\nTool results:\n" <> results <> "\n\nNow give your reply, grounded in these results and the article."

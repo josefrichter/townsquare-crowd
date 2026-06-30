@@ -41,9 +41,18 @@ defmodule TownCrowd.Context do
 
   # --- source resolution + memoized load ------------------------------------
 
-  # local file wins when it exists (dev); otherwise the configured URL (production)
+  # Resolution order: a local file wins when it exists (dev), else the configured URL
+  # (production). CROWD_ARTICLES_DIR overrides where local files are looked up — handy
+  # since this repo no longer sits next to the article files: it joins that dir with the
+  # basename of each configured :article_files path.
   defp source(scene) do
-    file = Application.get_env(:town_crowd, :article_files, %{})[scene]
+    configured = Application.get_env(:town_crowd, :article_files, %{})[scene]
+
+    file =
+      case {System.get_env("CROWD_ARTICLES_DIR"), configured} do
+        {dir, path} when is_binary(dir) and is_binary(path) -> Path.join(dir, Path.basename(path))
+        {_, path} -> path
+      end
 
     cond do
       is_binary(file) and File.exists?(file) -> file

@@ -303,7 +303,8 @@ defmodule TownCrowd.Bot do
   def handle_info(:kickoff_check, st) do
     schedule_kickoff_check()
 
-    if not calm?(st) and not someone_typing?(st) and
+    # assistants wait to be asked — they don't open threads on a quiet page
+    if not assistant?(st) and not calm?(st) and not someone_typing?(st) and
          now() - st.last_msg_at > @quiet_kickoff_ms and not pending_route?(st, :kickoff) do
       {:noreply, think(st, :kickoff, fn -> Brain.kickoff(st.persona, st.context, st.memory) end)}
     else
@@ -523,6 +524,8 @@ defmodule TownCrowd.Bot do
   defp apply_pushback(st, false, _text), do: st
 
   defp calm?(st), do: now() < st.calm_until
+
+  defp assistant?(st), do: Map.get(st.persona, :mode, :regular) == :assistant
 
   # bots have gone back and forth too many times without a human — let it rest
   defp chatter_maxed?(st), do: not st.last_human? and st.bot_streak >= @bot_streak_max
