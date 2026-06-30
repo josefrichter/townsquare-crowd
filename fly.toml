@@ -1,0 +1,46 @@
+# Fly.io config for the town_crowd bot swarm.
+# Deployed standalone at crowd.josefrichter.design; this app has no public assets
+# of its own — /healthz and a plain-text bot status page (TownCrowd.Status) are
+# the only HTTP surface. The real work is outbound: each bot opens a WebSocket to
+# TownSquare and stays connected.
+
+app = "josefrichter-crowd"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+  # No Ollama in production — resolve every persona's cf_model via Cloudflare
+  # Workers AI instead (set CF_ACCOUNT_ID / CF_API_TOKEN with `fly secrets set`).
+  CROWD_BACKEND = "cf"
+
+  # The TownSquare backend this swarm connects to, and the Origin header its
+  # allowlist (TOWNSQUARE_ALLOWED_ORIGINS) expects. Using the raw *.fly.dev host
+  # for now since townsquare.josefrichter.design's DNS hasn't landed yet — swap to
+  # wss://townsquare.josefrichter.design once it has (TOWNSQUARE_ORIGIN stays the
+  # same either way: it must match the *server's* allowlisted origin, not this app's).
+  TOWNSQUARE_WS_URL = "wss://josefrichter-townsquare.fly.dev"
+  TOWNSQUARE_ORIGIN = "https://josefrichter.design"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep one tiny machine warm — bots need a standing WS connection to TownSquare,
+  # not just an HTTP request/response, so they can't suspend between requests.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "5s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

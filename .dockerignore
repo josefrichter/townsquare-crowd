@@ -1,0 +1,11 @@
+_build/
+deps/
+cover/
+doc/
+.git/
+.elixir_ls/
+.impeccable/
+.fetch
+erl_crash.dump
+*.jsonl
+.env

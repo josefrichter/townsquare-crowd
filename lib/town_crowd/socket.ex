@@ -11,10 +11,17 @@ defmodule TownCrowd.Socket do
   use WebSockex
   require Logger
 
-  def start_link(%{owner: owner, url: url}) do
+  def start_link(%{owner: owner, url: url} = opts) do
+    extra_headers =
+      case Map.get(opts, :origin) do
+        origin when is_binary(origin) -> [{"Origin", origin}]
+        _ -> []
+      end
+
     WebSockex.start_link(url, __MODULE__, %{owner: owner},
       async: true,
-      handle_initial_conn_failure: true
+      handle_initial_conn_failure: true,
+      extra_headers: extra_headers
     )
   end
 

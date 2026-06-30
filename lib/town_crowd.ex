@@ -17,4 +17,15 @@ defmodule TownCrowd do
     base = Application.get_env(:town_crowd, :townsquare_ws, "ws://127.0.0.1:8788")
     "#{base}/live?siteKey=#{URI.encode_www_form(site_key)}"
   end
+
+  @doc """
+  The `Origin` header to present during the WS handshake, or `nil` to send none.
+
+  TownSquare allowlists handshake origins (`TOWNSQUARE_ALLOWED_ORIGINS`) so only the
+  blog can open a socket; bots aren't a browser, so without this they'd be rejected
+  the moment the server enforces a real allowlist. Set `TOWNSQUARE_ORIGIN` in
+  production to one of the server's allowed origins. Unset in dev, where the
+  server's allowlist is empty (permits any origin) by default.
+  """
+  def origin, do: Application.get_env(:town_crowd, :townsquare_origin)
 end

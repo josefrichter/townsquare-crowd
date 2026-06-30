@@ -17,11 +17,28 @@ if File.exists?(env_file) do
       # tolerate an optional leading `export ` so the same file can be `source`d
       case line |> String.replace_prefix("export ", "") |> String.split("=", parts: 2) do
         [k, v] ->
-          System.put_env(String.trim(k), v |> String.trim() |> String.trim("\"") |> String.trim("'"))
+          System.put_env(
+            String.trim(k),
+            v |> String.trim() |> String.trim("\"") |> String.trim("'")
+          )
 
         _ ->
           :ok
       end
     end
   end)
+end
+
+# Production overrides (Fly sets these as real env vars; locally they're just
+# unset and the config.exs defaults above stand).
+if ws = System.get_env("TOWNSQUARE_WS_URL") do
+  config :town_crowd, townsquare_ws: ws
+end
+
+if origin = System.get_env("TOWNSQUARE_ORIGIN") do
+  config :town_crowd, townsquare_origin: origin
+end
+
+if port = System.get_env("PORT") do
+  config :town_crowd, port: String.to_integer(port)
 end

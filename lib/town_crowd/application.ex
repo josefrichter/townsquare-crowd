@@ -9,6 +9,8 @@ defmodule TownCrowd.Application do
 
   @impl true
   def start(_type, _args) do
+    port = Application.get_env(:town_crowd, :port, 8080)
+
     children = [
       # Cluster-wide bot directory (handle -> pid). Starts :pg; works across nodes
       # the moment they're connected, with no change to anything below.
@@ -25,7 +27,11 @@ defmodule TownCrowd.Application do
       {DynamicSupervisor, name: TownCrowd.BotSup, strategy: :one_for_one},
 
       # Reads the persona list and spawns the population.
-      TownCrowd.Population
+      TownCrowd.Population,
+
+      # The only HTTP surface: /healthz (for Fly) + a plain-text bot status page.
+      # This app is fundamentally a WS client, not a server — this is a side door.
+      {Bandit, plug: TownCrowd.Status, port: port}
     ]
 
     case Supervisor.start_link(children, strategy: :one_for_one, name: TownCrowd.Supervisor) do
@@ -44,7 +50,10 @@ defmodule TownCrowd.Application do
 
     IO.puts("")
     IO.puts("  town_crowd — #{length(personas)} bots ready, connecting to #{ws}")
-    IO.puts("  backend: #{TownCrowd.Personas.backend()}  (set CROWD_BACKEND=cf for Cloudflare Workers AI)")
+
+    IO.puts(
+      "  backend: #{TownCrowd.Personas.backend()}  (set CROWD_BACKEND=cf for Cloudflare Workers AI)"
+    )
 
     personas
     |> Enum.group_by(& &1.site_key)

@@ -48,8 +48,10 @@ defmodule TownCrowd.Bot do
   @type_ms_per_char 45
   @type_min_ms 600
   @type_max_ms 3_000
-  @interchunk_ms 1_200          # gap between bubbles of a multi-part reply
-  @claim_ttl 25_000             # how long a "I'm answering this message" claim holds
+  # gap between bubbles of a multi-part reply
+  @interchunk_ms 1_200
+  # how long a "I'm answering this message" claim holds
+  @claim_ttl 25_000
 
   # one bot acknowledges a human "slow down" out loud, then the room goes quiet
   @ack_min_ms 300
@@ -75,7 +77,13 @@ defmodule TownCrowd.Bot do
 
   @impl true
   def init(persona) do
-    {:ok, sock} = Socket.start_link(%{owner: self(), url: TownCrowd.ws_url(persona.site_key)})
+    {:ok, sock} =
+      Socket.start_link(%{
+        owner: self(),
+        url: TownCrowd.ws_url(persona.site_key),
+        origin: TownCrowd.origin()
+      })
+
     BotRegistry.register(persona.handle)
     BotRegistry.join_scene(persona.site_key)
     x = rand_x()
@@ -152,13 +160,21 @@ defmodule TownCrowd.Bot do
   end
 
   def handle_info({:frame, %{"type" => "join", "peer" => %{"id" => id, "x" => x} = p}}, st),
-    do: {:noreply, %{st | peers: Map.put(st.peers, id, x), names: Map.put(st.names, id, name_or(p["displayName"]))}}
+    do:
+      {:noreply,
+       %{
+         st
+         | peers: Map.put(st.peers, id, x),
+           names: Map.put(st.names, id, name_or(p["displayName"]))
+       }}
 
   def handle_info({:frame, %{"type" => "profile", "id" => id} = f}, st),
     do: {:noreply, %{st | names: Map.put(st.names, id, name_or(f["displayName"]))}}
 
   def handle_info({:frame, %{"type" => "leave", "id" => id}}, st),
-    do: {:noreply, %{st | peers: Map.delete(st.peers, id), peers_typing: MapSet.delete(st.peers_typing, id)}}
+    do:
+      {:noreply,
+       %{st | peers: Map.delete(st.peers, id), peers_typing: MapSet.delete(st.peers_typing, id)}}
 
   def handle_info({:frame, %{"type" => "move", "id" => id, "x" => x}}, st),
     do: {:noreply, put_in(st.peers[id], x)}
@@ -211,12 +227,16 @@ defmodule TownCrowd.Bot do
     st =
       cond do
         # "introduce yourselves" to the room → everyone introduces (staggered)
-        intro? and mentions == [] -> schedule_intro(st)
+        intro? and mentions == [] ->
+          schedule_intro(st)
+
         # react to overheard chat, unless the room's calm, the bots have been
         # ping-ponging too long, or this bot is staying quiet this round (reticence)
         mentions == [] and not calm?(st) and not chatter_maxed?(st) and not reticent?(st) ->
           maybe_consider(st)
-        true -> st
+
+        true ->
+          st
       end
 
     {:noreply, st}
@@ -230,8 +250,12 @@ defmodule TownCrowd.Bot do
   # directly (not via a local bot). "come over" makes the shadow stick around.
   def handle_info({:address, _reply_to, from_scene, text}, st) do
     cond do
-      from_scene == st.scene -> {:noreply, st}
-      seen?(st, from_scene, text) -> {:noreply, st}
+      from_scene == st.scene ->
+        {:noreply, st}
+
+      seen?(st, from_scene, text) ->
+        {:noreply, st}
+
       true ->
         st = mark_seen(st, from_scene, text)
         {st, pid} = ensure_shadow(st, from_scene, String.match?(text, @come_over_re))
@@ -252,11 +276,19 @@ defmodule TownCrowd.Bot do
     claim? = st.last_is_question? or st.last_human?
 
     cond do
-      calm?(st) -> {:noreply, st}
-      claim? and claimed_by_other?(st, key) -> {:noreply, st}
+      calm?(st) ->
+        {:noreply, st}
+
+      claim? and claimed_by_other?(st, key) ->
+        {:noreply, st}
+
       # a human message jumps the cooldown — it shouldn't queue behind bot chatter
-      not st.last_human? and now() - st.last_spoke_at < @cooldown_ms -> {:noreply, st}
-      pending_route?(st, :respond) or st.respond_committing? -> {:noreply, st}
+      not st.last_human? and now() - st.last_spoke_at < @cooldown_ms ->
+        {:noreply, st}
+
+      pending_route?(st, :respond) or st.respond_committing? ->
+        {:noreply, st}
+
       true ->
         Process.send_after(self(), {:commit_respond, key, claim?}, 150 + :rand.uniform(650))
         {:noreply, %{st | respond_committing?: true}}
@@ -269,10 +301,18 @@ defmodule TownCrowd.Bot do
     target = target_name(st)
 
     cond do
-      calm?(st) -> {:noreply, st}
-      claim? and claimed_by_other?(st, key) -> {:noreply, st}
-      not st.last_human? and now() - st.last_spoke_at < @cooldown_ms -> {:noreply, st}
-      pending_route?(st, :respond) -> {:noreply, st}
+      calm?(st) ->
+        {:noreply, st}
+
+      claim? and claimed_by_other?(st, key) ->
+        {:noreply, st}
+
+      not st.last_human? and now() - st.last_spoke_at < @cooldown_ms ->
+        {:noreply, st}
+
+      pending_route?(st, :respond) ->
+        {:noreply, st}
+
       true ->
         if claim?, do: broadcast_claim(st, key)
         p = st.persona
@@ -328,7 +368,9 @@ defmodule TownCrowd.Bot do
     if st.ack_pending do
       phrase = Enum.random(@ack_phrases)
       Transcript.log(st.scene, st.persona.name, st.persona.model, "say", phrase)
-      {:noreply, %{st | ack_pending: false, last_spoke_at: now()} |> note_self(phrase) |> say(phrase)}
+
+      {:noreply,
+       %{st | ack_pending: false, last_spoke_at: now()} |> note_self(phrase) |> say(phrase)}
     else
       {:noreply, st}
     end
@@ -360,8 +402,11 @@ defmodule TownCrowd.Bot do
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, st) when is_reference(ref) do
     case Map.pop(st.shadow_by_ref, ref) do
-      {nil, _} -> {:noreply, set_typing(%{st | pending: Map.delete(st.pending, ref)}, false)}
-      {scene, by_ref} -> {:noreply, %{st | shadow_by_ref: by_ref, shadows: Map.delete(st.shadows, scene)}}
+      {nil, _} ->
+        {:noreply, set_typing(%{st | pending: Map.delete(st.pending, ref)}, false)}
+
+      {scene, by_ref} ->
+        {:noreply, %{st | shadow_by_ref: by_ref, shadows: Map.delete(st.shadows, scene)}}
     end
   end
 
@@ -411,8 +456,12 @@ defmodule TownCrowd.Bot do
 
   defp forward(handle, text, st) do
     case BotRegistry.whereis(handle) do
-      nil -> st
-      pid -> send(pid, {:address, self(), st.scene, text}); st
+      nil ->
+        st
+
+      pid ->
+        send(pid, {:address, self(), st.scene, text})
+        st
     end
   end
 
@@ -436,11 +485,17 @@ defmodule TownCrowd.Bot do
     {:ok, pid} =
       DynamicSupervisor.start_child(
         TownCrowd.BotSup,
-        {Shadow, %{persona: st.persona, scene: scene, home: st.scene, owner: self(), sticky?: sticky?}}
+        {Shadow,
+         %{persona: st.persona, scene: scene, home: st.scene, owner: self(), sticky?: sticky?}}
       )
 
     ref = Process.monitor(pid)
-    {%{st | shadows: Map.put(st.shadows, scene, pid), shadow_by_ref: Map.put(st.shadow_by_ref, ref, scene)}, pid}
+
+    {%{
+       st
+       | shadows: Map.put(st.shadows, scene, pid),
+         shadow_by_ref: Map.put(st.shadow_by_ref, ref, scene)
+     }, pid}
   end
 
   defp answer_for(p, ctx, mem, text, target) do
@@ -568,7 +623,12 @@ defmodule TownCrowd.Bot do
   end
 
   defp typing_delay(text),
-    do: text |> String.length() |> Kernel.*(@type_ms_per_char) |> max(@type_min_ms) |> min(@type_max_ms)
+    do:
+      text
+      |> String.length()
+      |> Kernel.*(@type_ms_per_char)
+      |> max(@type_min_ms)
+      |> min(@type_max_ms)
 
   # --- helpers --------------------------------------------------------------
 
@@ -586,7 +646,10 @@ defmodule TownCrowd.Bot do
 
   defp too_similar?(st, text) do
     n = norm(text)
-    st.memory |> Enum.take(8) |> Enum.any?(fn {_who, t} -> String.jaro_distance(n, norm(t)) > 0.82 end)
+
+    st.memory
+    |> Enum.take(8)
+    |> Enum.any?(fn {_who, t} -> String.jaro_distance(n, norm(t)) > 0.82 end)
   end
 
   defp norm(t), do: t |> to_string() |> String.downcase() |> String.slice(0, 90)
