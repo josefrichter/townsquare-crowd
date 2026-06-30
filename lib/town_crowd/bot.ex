@@ -31,25 +31,31 @@ defmodule TownCrowd.Bot do
   @step_ms 650
 
   # conversation pacing (human-followable)
-  @consider_base_ms 2_500
-  @read_ms_per_char 45
-  @read_cap_ms 9_000
-  @human_yield_ms 4_000
-  @consider_jitter 3_000
-  @cooldown_ms 18_000
+  # Slowed down from the original values: with up to 5 bots awake at once, the room's
+  # *overall* tempo is the sum of everyone's reactions, not any one bot's cooldown — a
+  # short jitter window meant several bots could land replies within the same few
+  # seconds, reading as a flood rather than a conversation. Wider jitter and reading
+  # time spreads simultaneous reactions out in real time; the rest just slows the
+  # per-bot rhythm to something a human can actually read as it arrives.
+  @consider_base_ms 3_500
+  @read_ms_per_char 55
+  @read_cap_ms 12_000
+  @human_yield_ms 5_000
+  @consider_jitter 7_000
+  @cooldown_ms 26_000
   # after this many bot-to-bot turns with no human, let the thread rest until a human
   # speaks (or a quiet-room kickoff) — stops two bots ping-ponging forever
-  @bot_streak_max 4
+  @bot_streak_max 2
   @quiet_kickoff_ms 45_000
   @kickoff_check_ms 15_000
   @calm_ms 45_000
 
   # simulated typing after the model returns (the round-trip itself already shows dots)
   @type_ms_per_char 45
-  @type_min_ms 600
-  @type_max_ms 3_000
+  @type_min_ms 900
+  @type_max_ms 3_500
   # gap between bubbles of a multi-part reply
-  @interchunk_ms 1_200
+  @interchunk_ms 1_800
   # how long a "I'm answering this message" claim holds
   @claim_ttl 25_000
 
