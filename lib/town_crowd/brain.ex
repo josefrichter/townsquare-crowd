@@ -418,7 +418,9 @@ defmodule TownCrowd.Brain do
   # with the results folded in (avoids depending on CF's multi-turn tool format).
   defp cloudflare(model, system, user, affinity, persona, enabled?) do
     account = System.get_env("CF_ACCOUNT_ID")
-    token = System.get_env("CF_API_TOKEN")
+    # routed through the "town-crowd" AI Gateway (spend-limited) when a gateway
+    # token is configured; falls back to calling Workers AI directly otherwise
+    token = System.get_env("CF_AI_GATEWAY_API_TOKEN") || System.get_env("CF_API_TOKEN")
 
     if blank?(account) or blank?(token) do
       nil
@@ -484,11 +486,22 @@ defmodule TownCrowd.Brain do
 
   defp cf_decode_args(_), do: %{}
 
+  # routes through the AI Gateway named here so its spend limit applies — the
+  # `/ai/run/{model}` path and request shape are unchanged, this is purely an
+  # added header (https://developers.cloudflare.com/ai-gateway/usage/providers/workersai/).
+  # Read at call time, not compiled in: a module attribute would bake in whatever
+  # CF_AI_GATEWAY_ID was (or wasn't) set during the Docker build, not at boot.
+  defp ai_gateway_id, do: System.get_env("CF_AI_GATEWAY_ID") || "town-crowd"
+
   defp cf_run(account, token, model, messages, tools, affinity) do
     url = "https://api.cloudflare.com/client/v4/accounts/#{account}/ai/run/#{model}"
     body = %{messages: messages, max_tokens: @max_tokens}
     body = if tools, do: Map.put(body, :tools, tools), else: body
-    headers = [{"x-session-affinity", "crowd-#{affinity}"}]
+
+    headers = [
+      {"x-session-affinity", "crowd-#{affinity}"},
+      {"cf-aig-gateway-id", ai_gateway_id()}
+    ]
 
     case Req.post(url,
            auth: {:bearer, token},

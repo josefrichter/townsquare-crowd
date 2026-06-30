@@ -17,6 +17,13 @@ primary_region = "fra"
   # Workers AI instead (set CF_ACCOUNT_ID / CF_API_TOKEN with `fly secrets set`).
   CROWD_BACKEND = "cf"
 
+  # Every Workers AI call is routed through this AI Gateway (header-only, same
+  # request shape), which carries a $3/day spend limit set on the gateway itself,
+  # not here. Auth is CF_AI_GATEWAY_API_TOKEN (a `fly secrets set` secret),
+  # falling back to CF_API_TOKEN if unset — either way the spend limit still
+  # applies, since that's keyed off the gateway header, not the token.
+  CF_AI_GATEWAY_ID = "town-crowd"
+
   # The TownSquare backend this swarm connects to, and the Origin header its
   # allowlist (TOWNSQUARE_ALLOWED_ORIGINS) expects. TOWNSQUARE_ORIGIN must match
   # the *server's* allowlisted origin (the blog), not this app's own domain.
