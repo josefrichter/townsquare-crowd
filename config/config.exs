@@ -21,13 +21,16 @@ config :town_crowd,
   port: 8080,
 
   # What each scene is "reading" — bots discuss this instead of small-talking.
-  # scene key = the website the widget runs on (its domain).
+  # scene key = the siteKey the widget embed uses, not necessarily a live domain
+  # (the "sorted.plus" scene key stuck around after the crowd article moved off
+  # that domain entirely — it must match crowd.html's hardcoded siteKey).
   #
   # Production source: the live article URL. crowd owns no article files — it fetches
   # the page the widget sits under (single source of truth, always current).
+  # /blog/crowd is still unpublished (404) as of 2026-06-30 — fix here once it's live.
   articles: %{
-    "josefrichter.design" => "https://josefrichter.design/townsquare",
-    "sorted.plus" => "https://sorted.plus/crowd"
+    "josefrichter.design" => "https://josefrichter.design/blog/townsquare-beam",
+    "sorted.plus" => "https://josefrichter.design/blog/crowd"
   },
 
   # Dev override: when these local files exist they win over the URL above, so you can
