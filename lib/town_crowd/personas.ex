@@ -117,9 +117,9 @@ defmodule TownCrowd.Personas do
         name: "Gemma 2",
         handle: "gemma",
         model: "ollama:gemma2:2b",
-        # CF has no gemma-2; gemma-3-12b is the closest (and the priciest of the four —
-        # swap to cf:@cf/meta/llama-3.2-1b-instruct if you want this role dirt cheap).
-        cf_model: "cf:@cf/google/gemma-3-12b-it",
+        # CF has no gemma-2; gemma-3-12b was the closest but ~10x pricier than the
+        # other personas' models, so this role runs the cheapest CF model instead.
+        cf_model: "cf:@cf/meta/llama-3.2-1b-instruct",
         color: "#3f7f63",
         site_key: "sorted.plus",
         tempo_ms: 11_000,
