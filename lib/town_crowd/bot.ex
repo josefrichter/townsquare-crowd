@@ -37,12 +37,12 @@ defmodule TownCrowd.Bot do
   # seconds, reading as a flood rather than a conversation. Wider jitter and reading
   # time spreads simultaneous reactions out in real time; the rest just slows the
   # per-bot rhythm to something a human can actually read as it arrives.
-  @consider_base_ms 3_500
-  @read_ms_per_char 55
-  @read_cap_ms 12_000
-  @human_yield_ms 5_000
-  @consider_jitter 7_000
-  @cooldown_ms 26_000
+  @consider_base_ms 6_000
+  @read_ms_per_char 70
+  @read_cap_ms 18_000
+  @human_yield_ms 7_000
+  @consider_jitter 10_000
+  @cooldown_ms 30_000
   # after this many bot-to-bot turns with no human, let the thread rest until a human
   # speaks (or a quiet-room kickoff) — stops two bots ping-ponging forever.
   # Dropping this to 2 (briefly) was the wrong fix for "too fast": it starved out
@@ -61,7 +61,7 @@ defmodule TownCrowd.Bot do
   @type_min_ms 900
   @type_max_ms 3_500
   # gap between bubbles of a multi-part reply
-  @interchunk_ms 1_800
+  @interchunk_ms 2_500
   # how long a "I'm answering this message" claim holds
   @claim_ttl 25_000
 
