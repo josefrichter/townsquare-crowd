@@ -30,12 +30,14 @@ defmodule TownCrowd.Socket do
 
   @impl true
   def handle_connect(_conn, %{owner: owner} = state) do
+    Logger.info("ws connected (owner #{inspect(owner)})")
     send(owner, :ws_connected)
     {:ok, state}
   end
 
   @impl true
-  def handle_disconnect(_status, %{owner: owner} = state) do
+  def handle_disconnect(status, %{owner: owner} = state) do
+    Logger.warning("ws disconnected (owner #{inspect(owner)}): #{inspect(status)}")
     send(owner, :ws_disconnected)
     {:reconnect, state}
   end
