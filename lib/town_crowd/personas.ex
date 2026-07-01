@@ -4,9 +4,9 @@ defmodule TownCrowd.Personas do
   models is free), `system` gives the character, `site_key` is which article-scene
   it sits under, and `handle` is what you type after `@`.
 
-  Two on each scene, so there's a real back-and-forth. All on Cloudflare's free tier.
-  Model ids verified against the live catalog (they drift — see Brain/README if one
-  starts returning 410).
+  Two or three on each scene, so there's a real back-and-forth without a flood. All
+  on Cloudflare's free tier. Model ids verified against the live catalog (they
+  drift — see Brain/README if one starts returning 410).
   """
 
   @palette ~w(#5f6b73 #c8641f #3f7f63 #3f6fb5 #8a5fb1 #b44f6f)
@@ -51,10 +51,8 @@ defmodule TownCrowd.Personas do
   # Local models via Ollama (free, unlimited) — no Cloudflare neurons / API caps.
   # Start the server first: `ollama serve`.
   #
-  # The TownSquare-article scene uses models you already have (llama3.2, llama3.1:8b)
-  # so it talks with zero downloads. The crowd-article scene uses two tiny models —
-  # pull them when you want that scene live:
-  #   ollama pull qwen2.5:3b && ollama pull gemma2:2b
+  # Both scenes use models you already have (llama3.1:8b, llama3.2:1b) so they talk
+  # with zero downloads.
   #
   # The model PREFIX picks the backend, so you can freely mix:
   #   "ollama:<name>"  local   ·   "cf:@cf/..."  Cloudflare (when neurons reset)
@@ -165,52 +163,13 @@ defmodule TownCrowd.Personas do
       # the josefrichter.design scene right now — that's beamexpert/nodeexpert only.
       # Re-add a %{..., mode: :assistant, site_key: "..."} entry here to bring one back.
 
-      # --- under the crowd / bots article (pull these two) -----------------
-      %{
-        name: "Qwen 2.5",
-        handle: "qwen",
-        model: "ollama:qwen2.5:3b",
-        model_label: "Qwen 2.5 3B",
-        cf_model: "cf:@cf/qwen/qwen3-30b-a3b-fp8",
-        cf_model_label: "Qwen 3 30B",
-        color: "#c8641f",
-        site_key: "sorted.plus",
-        tempo_ms: 13_000,
-        tools: true,
-        system:
-          "You're Qwen — precise and implementation-minded. You care about the details: edge cases, costs, what breaks at scale. You ask concrete 'how would that actually work' questions."
-      },
-      %{
-        name: "Gemma 2",
-        handle: "gemma",
-        model: "ollama:gemma2:2b",
-        model_label: "Gemma 2 2B",
-        # CF has no gemma-2; gemma-3-12b was the closest but ~10x pricier than the
-        # other personas' models, so this role runs the cheapest CF model instead.
-        # cf_model_label is honest about the swap: it'll introduce itself as running
-        # on Llama 3.2 1B in production, not Gemma — the character name stays "Gemma"
-        # for continuity, but self-intro states the real backing model either way.
-        cf_model: "cf:@cf/meta/llama-3.2-1b-instruct",
-        cf_model_label: "Llama 3.2 1B",
-        color: "#3f7f63",
-        site_key: "sorted.plus",
-        tempo_ms: 11_000,
-        # gemma2:2b has no reliable tool-calling, so no web access — it stays a pure
-        # article-grounded voice (and asks the others to look things up).
-        tools: false,
-        # the smallest model: keep it on a tight leash so it doesn't drift or flood the
-        # room — one sentence per turn, and it stays quiet for most overheard chatter.
-        max_sentences: 1,
-        reticence: 0.6,
-        system:
-          "You're Gemma — the eager newcomer. You ask ONE short, genuine question about something SPECIFIC the article actually says: a concrete detail, term, or claim from it (quote a few of its own words if it helps). Never ask about AI in general, the future of AI, research, or anything the article doesn't cover. One simple question, then let the others answer."
-      },
-
-      # Same two characters as beamexpert/nodeexpert (see josefrichter.design above),
-      # new handles: a persona is scoped to one site_key, so being resident here too
-      # means a second instance, not the same process wearing two hats. topic_match/1
-      # in bot.ex scopes keyword-bias siblings by site_key, so this pair biases against
-      # each other here exactly like the original pair does on their own scene.
+      # --- under the crowd article (github.com/josefrichter/townsquare-crowd) -----
+      # Same two characters as beamexpert/nodeexpert above, new handles: a persona is
+      # scoped to one site_key, so being resident here too means a second instance,
+      # not the same process wearing two hats. topic_match/1 in bot.ex scopes
+      # keyword-bias siblings by site_key, so this pair biases against each other
+      # here exactly like the original pair does on their own scene. Three personas
+      # total on this scene, on purpose — kept small deliberately.
       %{
         name: "BEAM Expert",
         handle: "beamcrowd",
@@ -219,7 +178,7 @@ defmodule TownCrowd.Personas do
         cf_model: "cf:@cf/meta/llama-3.1-8b-instruct-fp8-fast",
         cf_model_label: "Llama 3.1 8B",
         color: "#3f6fb5",
-        site_key: "sorted.plus",
+        site_key: "crowd",
         tempo_ms: 12_000,
         tools: true,
         keywords: ~w(
@@ -263,7 +222,7 @@ defmodule TownCrowd.Personas do
         cf_model: "cf:@cf/meta/llama-3.1-8b-instruct-fp8-fast",
         cf_model_label: "Llama 3.1 8B",
         color: "#5f6b73",
-        site_key: "sorted.plus",
+        site_key: "crowd",
         tempo_ms: 14_000,
         tools: true,
         keywords:
@@ -309,7 +268,7 @@ defmodule TownCrowd.Personas do
         cf_model: "cf:@cf/meta/llama-3.2-1b-instruct",
         cf_model_label: "Llama 3.2 1B",
         color: "#b44f6f",
-        site_key: "sorted.plus",
+        site_key: "crowd",
         tempo_ms: 13_000,
         # smallest model here too — no tool round-trips it'd likely fumble, keep it
         # on the same tight leash as Gemma: one sentence, stays quiet most of the time.

@@ -7,8 +7,8 @@ defmodule TownCrowd.Context do
   and may be shadowed by a local file in `:article_files` for development:
 
       config :town_crowd,
-        articles:      %{"sorted.plus" => "https://sorted.plus/crowd"},
-        article_files: %{"sorted.plus" => "../crowd-article.html"}  # wins if it exists
+        articles:      %{"crowd" => "https://josefrichter.design/blog/crowd"},
+        article_files: %{"crowd" => "../crowd-article.html"}  # wins if it exists
 
   The raw page is fetched/read once and memoized (per source), so both `article/1`
   and `links/1` come from a single load and repeat calls are free.
@@ -75,8 +75,12 @@ defmodule TownCrowd.Context do
     case :persistent_term.get(key, :miss) do
       :miss ->
         case load(src) do
-          nil -> nil
-          html -> :persistent_term.put(key, html); html
+          nil ->
+            nil
+
+          html ->
+            :persistent_term.put(key, html)
+            html
         end
 
       html ->
@@ -86,12 +90,21 @@ defmodule TownCrowd.Context do
 
   defp load("http" <> _ = url) do
     case Req.get(url, receive_timeout: @timeout, retry: false, redirect: true) do
-      {:ok, %{status: s, body: body}} when s in 200..299 and is_binary(body) -> body
-      {:ok, %{status: s}} -> Logger.warning("article fetch #{url} HTTP #{s}"); nil
-      {:error, e} -> Logger.warning("article fetch #{url}: #{inspect(e)}"); nil
+      {:ok, %{status: s, body: body}} when s in 200..299 and is_binary(body) ->
+        body
+
+      {:ok, %{status: s}} ->
+        Logger.warning("article fetch #{url} HTTP #{s}")
+        nil
+
+      {:error, e} ->
+        Logger.warning("article fetch #{url}: #{inspect(e)}")
+        nil
     end
   rescue
-    e -> Logger.warning("article fetch crash #{url}: #{inspect(e)}"); nil
+    e ->
+      Logger.warning("article fetch crash #{url}: #{inspect(e)}")
+      nil
   end
 
   defp load(path) do
