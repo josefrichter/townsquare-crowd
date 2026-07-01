@@ -31,17 +31,17 @@ defmodule TownCrowd.Bot do
   @step_ms 650
 
   # conversation pacing (human-followable)
-  # Slowed down from the original values: with up to 5 bots awake at once, the room's
-  # *overall* tempo is the sum of everyone's reactions, not any one bot's cooldown — a
-  # short jitter window meant several bots could land replies within the same few
-  # seconds, reading as a flood rather than a conversation. Wider jitter and reading
-  # time spreads simultaneous reactions out in real time; the rest just slows the
-  # per-bot rhythm to something a human can actually read as it arrives.
-  @consider_base_ms 6_000
-  @read_ms_per_char 70
-  @read_cap_ms 18_000
-  @human_yield_ms 7_000
-  @consider_jitter 10_000
+  # The wide version of these was tuned for up to 5 bots awake in one room, where the
+  # room's *overall* tempo is the sum of everyone's reactions — a short jitter window
+  # meant several could land replies within the same few seconds, reading as a flood.
+  # Every room today tops out at 2 bots, so that risk is gone; a first reply taking
+  # 15-25s (the old math) just reads as "nobody's home" instead. Tightened back down —
+  # still a beat to "read" the message, not an instant reflex.
+  @consider_base_ms 2_500
+  @read_ms_per_char 40
+  @read_cap_ms 7_000
+  @human_yield_ms 2_000
+  @consider_jitter 4_000
   @cooldown_ms 30_000
   # after this many bot-to-bot turns with no human, let the thread rest until a human
   # speaks (or a quiet-room kickoff) — stops two bots ping-ponging forever.
@@ -310,8 +310,11 @@ defmodule TownCrowd.Bot do
     st = %{st | consider_scheduled: false}
     key = st.last_msg_key
     # claim/lease applies to QUESTIONS and to ANY human message (one answerer, no
-    # pile-on); a bot's statement can still draw several reactions.
-    claim? = st.last_is_question? or st.last_human?
+    # pile-on); a bot's statement can still draw several reactions. Exception: a
+    # message that matches more than one expert's keywords (addressed to "both
+    # sides") skips the claim entirely, so each independently answers instead of
+    # one racing the other off the message.
+    claim? = (st.last_is_question? or st.last_human?) and topic_match(st) != :both
 
     cond do
       calm?(st) ->
@@ -474,13 +477,47 @@ defmodule TownCrowd.Bot do
     %{st | consider_scheduled: true}
   end
 
-  # reading time scales with how long the last message was; extra room after a human
+  # reading time scales with how long the last message was; extra room after a human.
+  # Biased by keyword affinity (no LLM classifier — a cheap heuristic): a message
+  # matching THIS bot's own keywords jumps the queue; one matching only a sibling
+  # expert's keywords hangs back so that expert claims it first.
   defp read_delay(st) do
-    @consider_base_ms +
-      min(st.last_len * @read_ms_per_char, @read_cap_ms) +
-      if(st.last_human?, do: @human_yield_ms, else: 0) +
-      :rand.uniform(@consider_jitter)
+    base =
+      @consider_base_ms +
+        min(st.last_len * @read_ms_per_char, @read_cap_ms) +
+        if(st.last_human?, do: @human_yield_ms, else: 0) +
+        :rand.uniform(@consider_jitter)
+
+    case topic_match(st) do
+      :mine -> max(round(base * 0.4), 800)
+      :other -> base + 4_000
+      _ -> base
+    end
   end
+
+  # :mine (only this bot's keywords hit), :other (only a sibling's), :both (both —
+  # skips the claim step in :consider so each independently answers), :neither.
+  defp topic_match(st) do
+    text = String.downcase(st.last_text || "")
+    mine? = keyword_hit?(text, Map.get(st.persona, :keywords, []))
+
+    others? =
+      TownCrowd.Personas.all()
+      |> Enum.any?(fn p ->
+        p.site_key == st.persona.site_key and p.handle != st.persona.handle and
+          keyword_hit?(text, Map.get(p, :keywords, []))
+      end)
+
+    cond do
+      mine? and others? -> :both
+      mine? -> :mine
+      others? -> :other
+      true -> :neither
+    end
+  end
+
+  defp keyword_hit?(_text, []), do: false
+  defp keyword_hit?(text, keywords), do: Enum.any?(keywords, &String.contains?(text, &1))
 
   defp reply_here(st, text) do
     p = st.persona

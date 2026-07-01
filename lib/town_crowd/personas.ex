@@ -79,6 +79,14 @@ defmodule TownCrowd.Personas do
         site_key: "josefrichter.design",
         tempo_ms: 12_000,
         tools: true,
+        # No LLM classifier — bot.ex's topic_match/1 uses this list (a plain
+        # substring check against the incoming message) to bias who claims a
+        # question first, and to let both experts answer one that hits both lists.
+        keywords: ~w(
+          beam otp erlang elixir genserver supervisor supervision scheduler
+          schedulers scheduling process processes preemption preempt preemptive
+          reduction reductions mailbox nif dirty actor
+        ),
         reference_links: [
           {"Erlang processes & scheduling reference",
            "https://www.erlang.org/doc/system/ref_man_processes.html"},
@@ -118,6 +126,10 @@ defmodule TownCrowd.Personas do
         site_key: "josefrichter.design",
         tempo_ms: 14_000,
         tools: true,
+        keywords:
+          ~w(node nodejs node.js javascript typescript js v8 libuv callback
+             callbacks promise promises async cluster worker_threads npm) ++
+            ["event loop", "single-threaded", "single threaded"],
         reference_links: [
           {"Node.js event loop guide",
            "https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick"},
