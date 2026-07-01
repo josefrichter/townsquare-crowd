@@ -237,10 +237,16 @@ defmodule TownCrowd.Brain do
       TownCrowd.Context.links(scene)
       |> Enum.split_with(fn {_t, url} -> companion_link?(url, scene, scenes) end)
 
+    # a persona's own curated go-to docs (e.g. the BEAM/Node experts' reference_links),
+    # distinct from the article's own scraped links — same read_url mechanism, just
+    # pointed at material the article itself doesn't happen to link to.
+    reference = Map.get(persona, :reference_links, [])
+
     list =
       (Enum.map(companion, fn {t, u} ->
          "- [COMPANION ARTICLE — read this for the other piece] #{t}: #{u}"
        end) ++
+         Enum.map(reference, fn {t, u} -> "- [REFERENCE] #{t}: #{u}" end) ++
          Enum.map(other, fn {t, u} -> "- #{t}: #{u}" end))
       |> Enum.join("\n")
 
