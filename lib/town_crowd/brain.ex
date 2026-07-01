@@ -13,7 +13,11 @@ defmodule TownCrowd.Brain do
   require Logger
 
   @cap 480
-  @max_tokens 110
+  # was 110: tight enough that a genuine 2-3 sentence explanation regularly hit the
+  # ceiling mid-clause (see finish_sentence/1, which now trims those to the last
+  # complete sentence rather than showing the raw cutoff) — this gives real replies
+  # more room to actually finish before that trim ever has to kick in.
+  @max_tokens 160
   @timeout 30_000
 
   @house_rules """
@@ -85,7 +89,16 @@ defmodule TownCrowd.Brain do
       context,
       memory,
       nil,
-      "React to #{addr(target)}'s latest message, addressing them by name. If it's a question about the article, answer it from the article. If it's a statement, only chime in when you have a genuinely new point grounded in the article — a real disagreement, correction, or addition the article supports; if you'd just be agreeing, vibing, or restating, reply with nothing. Don't restate their message unless a brief quote is genuinely needed for context."
+      "First look back over the recent chat above: if a human asked a genuine question " <>
+        "in there that's still sitting unanswered — nobody actually addressed it, even if " <>
+        "other regulars have replied to each other since — answer THAT directly (address " <>
+        "the human by name if you know it), instead of reacting to the latest remark. " <>
+        "Otherwise, react to #{addr(target)}'s latest message, addressing them by name. If " <>
+        "it's a question about the article, answer it from the article. If it's a " <>
+        "statement, only chime in when you have a genuinely new point grounded in the " <>
+        "article — a real disagreement, correction, or addition the article supports; if " <>
+        "you'd just be agreeing, vibing, or restating, reply with nothing. Don't restate " <>
+        "their message unless a brief quote is genuinely needed for context."
     )
     |> generate(persona, true)
     |> strip_prefix(persona.name)
@@ -612,13 +625,39 @@ defmodule TownCrowd.Brain do
       |> String.trim()
 
     cond do
-      s == "" -> nil
+      s == "" ->
+        nil
+
       # a small model sometimes emits a tool call as plain text instead of via the
       # tool API — never say that; stay silent instead.
-      tool_call_garbage?(s) -> nil
-      String.length(s) <= @cap -> s
+      tool_call_garbage?(s) ->
+        nil
+
+      String.length(s) <= @cap ->
+        finish_sentence(s)
+
       # too long: cut at a word boundary (no ellipsis added)
-      true -> s |> String.slice(0, @cap) |> String.replace(~r/\s+\S*$/, "") |> String.trim()
+      true ->
+        s
+        |> String.slice(0, @cap)
+        |> String.replace(~r/\s+\S*$/, "")
+        |> String.trim()
+        |> finish_sentence()
+    end
+  end
+
+  # max_tokens can cut a reply off mid-clause ("...keeping the"), violating the
+  # house rule to always finish the thought with a period. Trim back to the last
+  # complete sentence rather than show the raw cutoff; if there isn't one, stay
+  # silent this turn instead of speaking half a thought.
+  defp finish_sentence(s) do
+    if String.match?(s, ~r/[.!?]$/) do
+      s
+    else
+      case Regex.run(~r/^(.*[.!?])/us, s) do
+        [_, head] -> String.trim(head)
+        nil -> nil
+      end
     end
   end
 
