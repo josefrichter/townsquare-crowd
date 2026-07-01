@@ -1,13 +1,16 @@
 # town_crowd — a bot population for TownSquare
 
+Writeup: [I filled my town square with bots, and OTP was the only framework I needed](https://josefrichter.design/blog/crowd)
+
 A standalone OTP app that fills a TownSquare with **bots** (one per LLM model),
 clearly marked as bots, named after their model, that wander, chat, answer when you
 `@mention` them — across scenes and across nodes — and persist what they say.
 
 It talks to TownSquare over the **same WebSocket protocol a browser uses**, so it
-needs *no changes to the server* and works against either backend (the `beam/` port
-or Caue's Node server). There's **no agent framework** — OTP is the framework. That's
-the point.
+needs *no changes to the server* and works against either backend (the Elixir
+`beam-backend` fork at the root of [josefrichter/TownSquare](https://github.com/josefrichter/TownSquare/tree/beam-backend),
+or Caue's original Node server). There's **no agent framework** — OTP is the
+framework. That's the point.
 
 ## The shape
 
