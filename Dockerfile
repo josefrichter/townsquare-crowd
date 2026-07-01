@@ -64,6 +64,10 @@ EXPOSE 8080
 # Distributed Erlang needs a routable, unique node name to cluster the two Fly
 # machines (see config/runtime.exs's libcluster topology): long names, and one
 # node per machine's private 6PN address (FLY_PRIVATE_IP, injected by Fly).
+# FLY_PRIVATE_IP is IPv6, but the BEAM's distribution protocol defaults to IPv4
+# (inet_tcp) — without -proto_dist inet6_tcp it resolves the node name but never
+# actually connects (silently retries forever).
 # `exec` keeps this process as PID 1 so Fly's SIGTERM still reaches the BEAM.
 ENV RELEASE_DISTRIBUTION=name
+ENV ERL_AFLAGS="-proto_dist inet6_tcp"
 CMD ["sh", "-c", "RELEASE_NODE=town_crowd@${FLY_PRIVATE_IP:-127.0.0.1} exec /app/bin/town_crowd start"]
