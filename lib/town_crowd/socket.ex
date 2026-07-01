@@ -11,6 +11,15 @@ defmodule TownCrowd.Socket do
   use WebSockex
   require Logger
 
+  # TownSquare closes an idle connection after 60s (WebSockAdapter's own idle
+  # timeout, router.ex). A bot with no human in its scene sends zero WS traffic
+  # (movement/typing only fire while awake) and would otherwise get force-closed
+  # on a loop, flickering its avatar in and out of presence. A WS-level ping well
+  # under that window keeps it alive without touching the JSON app protocol —
+  # scheduled once at connect, not on every reconnect, same fix as bot.ex's
+  # movement-loop bug earlier this session (schedule once, don't restack).
+  @keepalive_ms 25_000
+
   def start_link(%{owner: owner, url: url} = opts) do
     extra_headers =
       case Map.get(opts, :origin) do
@@ -18,11 +27,15 @@ defmodule TownCrowd.Socket do
         _ -> []
       end
 
-    WebSockex.start_link(url, __MODULE__, %{owner: owner},
-      async: true,
-      handle_initial_conn_failure: true,
-      extra_headers: extra_headers
-    )
+    {:ok, pid} =
+      WebSockex.start_link(url, __MODULE__, %{owner: owner},
+        async: true,
+        handle_initial_conn_failure: true,
+        extra_headers: extra_headers
+      )
+
+    Process.send_after(pid, :keepalive, @keepalive_ms)
+    {:ok, pid}
   end
 
   @doc "Send a protocol frame (a plain map) to the server."
@@ -57,5 +70,11 @@ defmodule TownCrowd.Socket do
   @impl true
   def handle_cast({:send, map}, state) do
     {:reply, {:text, Jason.encode!(map)}, state}
+  end
+
+  @impl true
+  def handle_info(:keepalive, state) do
+    Process.send_after(self(), :keepalive, @keepalive_ms)
+    {:reply, :ping, state}
   end
 end
