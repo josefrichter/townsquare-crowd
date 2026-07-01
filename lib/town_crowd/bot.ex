@@ -144,6 +144,8 @@ defmodule TownCrowd.Bot do
       seen_set: MapSet.new()
     }
 
+    schedule_kickoff_check()
+    schedule_step()
     {:ok, state}
   end
 
@@ -152,7 +154,11 @@ defmodule TownCrowd.Bot do
   @impl true
   def handle_info(:ws_connected, st) do
     # starts asleep (st.awake: false) until the "hello" that follows reveals
-    # whether a human's already in the room
+    # whether a human's already in the room.
+    # Note: step/kickoff timers are started once in init/1, not here — this
+    # handler re-fires on every WebSockex auto-reconnect, and scheduling a new
+    # self-perpetuating :step chain each time would stack duplicate movement
+    # loops on top of each other (the bot walks 2x, 3x... as fast per reconnect).
     Socket.send_msg(st.sock, %{
       type: "init",
       browserId: st.browser_id,
@@ -161,8 +167,6 @@ defmodule TownCrowd.Bot do
       x: st.x
     })
 
-    schedule_kickoff_check()
-    schedule_step()
     {:noreply, st}
   end
 
