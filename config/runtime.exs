@@ -42,3 +42,22 @@ end
 if port = System.get_env("PORT") do
   config :town_crowd, port: String.to_integer(port)
 end
+
+# Cluster the Fly machines this app runs on (2, for zero-downtime deploys) over
+# Fly's private 6PN network, polling `<app>.internal` for sibling addresses.
+# FLY_APP_NAME only exists inside a deployed Fly machine — locally/in CI this is
+# skipped and the app just runs as a single, unclustered node (same as before
+# libcluster existed).
+if fly_app = System.get_env("FLY_APP_NAME") do
+  config :libcluster,
+    topologies: [
+      fly6pn: [
+        strategy: Cluster.Strategy.DNSPoll,
+        config: [
+          polling_interval: 2_000,
+          query: "#{fly_app}.internal",
+          node_basename: "town_crowd"
+        ]
+      ]
+    ]
+end

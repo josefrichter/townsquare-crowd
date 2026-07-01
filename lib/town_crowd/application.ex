@@ -10,8 +10,13 @@ defmodule TownCrowd.Application do
   @impl true
   def start(_type, _args) do
     port = Application.get_env(:town_crowd, :port, 8080)
+    topologies = Application.get_env(:libcluster, :topologies, [])
 
     children = [
+      # Connects this app's Fly machines into one distributed-Erlang cluster (see
+      # config/runtime.exs) — a no-op with an empty topology list outside Fly.
+      {Cluster.Supervisor, [topologies, [name: TownCrowd.ClusterSupervisor]]},
+
       # Cluster-wide bot directory (handle -> pid). Starts :pg; works across nodes
       # the moment they're connected, with no change to anything below.
       TownCrowd.BotRegistry,

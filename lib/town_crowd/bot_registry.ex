@@ -21,11 +21,14 @@ defmodule TownCrowd.BotRegistry do
 
   @doc "Find a bot by handle, anywhere in the cluster. Returns a pid or nil."
   def whereis(handle) do
-    case :pg.get_members(@scope, key(handle)) do
+    case whereis_all(handle) do
       [pid | _] -> pid
       [] -> nil
     end
   end
+
+  @doc "Every pid registered under `handle`, cluster-wide (normally 0 or 1; more means a dedup race)."
+  def whereis_all(handle), do: :pg.get_members(@scope, key(handle))
 
   @doc "Join the per-scene group, so bots in a scene can broadcast claims to each other."
   def join_scene(scene), do: :pg.join(@scope, {:scene, scene}, self())

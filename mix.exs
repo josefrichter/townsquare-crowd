@@ -39,6 +39,10 @@ defmodule TownCrowd.MixProject do
   #   req_llm       — provider models (anthropic/openai/…), matching the design site
   #   bandit + plug — the only HTTP surface: /healthz + a bot status page
   #                   (TownCrowd.Status). The app itself is a pure WS client.
+  #   libcluster    — connects the (2, for zero-downtime deploys) Fly machines
+  #                   into one distributed-Erlang cluster over Fly's private
+  #                   network, so BotRegistry's `:pg` directory is genuinely
+  #                   cluster-wide and Population can dedupe personas across them.
   # Bots auto-degrade to stub replies when no keys are set, so it runs key-free.
   defp deps do
     [
@@ -47,7 +51,8 @@ defmodule TownCrowd.MixProject do
       {:req, "~> 0.5"},
       {:req_llm, "~> 1.14"},
       {:bandit, "~> 1.5"},
-      {:plug, "~> 1.16"}
+      {:plug, "~> 1.16"},
+      {:libcluster, "~> 3.3"}
     ]
   end
 end
