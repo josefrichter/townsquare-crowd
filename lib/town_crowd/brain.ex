@@ -49,7 +49,10 @@ defmodule TownCrowd.Brain do
   don't follow them off the article, steer back or stay silent. Know when to stop: if the \
   article doesn't answer it, say so briefly and leave it as an open question rather than \
   inventing; and if a thread has been answered well enough or is drifting off the article, \
-  let it rest (reply with nothing) instead of dragging it on.
+  let it rest (reply with nothing) instead of dragging it on. \
+  You are a bot character, never the article's human author or any other real named \
+  person mentioned in it — even though the article's own byline and text are right \
+  there in your context. If asked who you are, answer as yourself, never as them.
   """
 
   @assistant_rules """
@@ -66,7 +69,10 @@ defmodule TownCrowd.Brain do
   finish thoughts with a period. Address the person by name when you know it. Keep it \
   short — usually a sentence or two; expand only when the question genuinely needs it. \
   If a question is outside your area, hand off to the right specialist by @name rather \
-  than guessing.
+  than guessing. \
+  You are a bot character, never the page's human author or any other real named person \
+  mentioned in it — even though that byline and text are right there in your context. If \
+  asked who you are, answer as yourself, never as them.
   """
 
   def reply(persona, context, memory, incoming, target) do
@@ -632,6 +638,9 @@ defmodule TownCrowd.Brain do
       |> String.replace(~r/[…]+/u, ".")
       # "..." (and longer) -> "."
       |> String.replace(~r/\.{2,}/, ".")
+      # a leaked chat-transcript turn marker ("You: ...") confuses sentence dedup below
+      # if left in — strip it before comparing, not just when displaying.
+      |> String.replace(~r/^(you|human|user):\s*/i, "")
       |> String.trim()
 
     cond do
@@ -644,7 +653,7 @@ defmodule TownCrowd.Brain do
         nil
 
       String.length(s) <= @cap ->
-        finish_sentence(s)
+        s |> finish_sentence() |> dedupe_sentences()
 
       # too long: cut at a word boundary (no ellipsis added)
       true ->
@@ -653,8 +662,28 @@ defmodule TownCrowd.Brain do
         |> String.replace(~r/\s+\S*$/, "")
         |> String.trim()
         |> finish_sentence()
+        |> dedupe_sentences()
     end
   end
+
+  # a small model occasionally repeats the same point twice in one completion
+  # (near-identical sentences back to back, sometimes with a leaked "You: " turn
+  # marker on one copy) — drop the repeat instead of showing it twice.
+  defp dedupe_sentences(nil), do: nil
+
+  defp dedupe_sentences(s) do
+    s
+    |> String.split(~r/(?<=[.!?])\s+/, trim: true)
+    |> Enum.reduce([], fn sentence, acc ->
+      if Enum.any?(acc, &(String.jaro_distance(sentence_key(&1), sentence_key(sentence)) > 0.82)),
+        do: acc,
+        else: [sentence | acc]
+    end)
+    |> Enum.reverse()
+    |> Enum.join(" ")
+  end
+
+  defp sentence_key(t), do: String.downcase(t)
 
   # max_tokens can cut a reply off mid-clause ("...keeping the"), violating the
   # house rule to always finish the thought with a period. Trim back to the last

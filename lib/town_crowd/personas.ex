@@ -147,28 +147,11 @@ defmodule TownCrowd.Personas do
             "search for it — don't guess at specifics."
       },
 
-      # An ASSISTANT, not a regular: a helpful guide for visitors. `mode: :assistant`
-      # swaps the prompt register (answer accurately, use tools, say so when unsure)
-      # and it won't open threads on a quiet page — it waits to be asked. Remove this
-      # entry to go back to a pure peanut-gallery of regulars.
-      %{
-        name: "Guide",
-        handle: "guide",
-        model: "ollama:llama3.1:8b",
-        model_label: "Llama 3.1 8B",
-        cf_model: "cf:@cf/meta/llama-3.1-8b-instruct-fp8-fast",
-        cf_model_label: "Llama 3.1 8B",
-        color: "#8a5fb1",
-        site_key: "josefrichter.design",
-        mode: :assistant,
-        tools: true,
-        # Extra context for the assistant: a local corpus (typically the full repo) it
-        # can search_repo/read_file on demand. Point CROWD_REPO at a checkout, e.g.
-        # CROWD_REPO=/path/to/TownSquare — unset = no repo tools (web tools still work).
-        knowledge: System.get_env("CROWD_REPO"),
-        system:
-          "You're the site's guide — calm, clear, genuinely helpful. You know this page well, can read its linked pages and the web, and can search the project's full source code and docs to answer detailed follow-ups. You help visitors understand the material and point them to the right detail."
-      },
+      # An ASSISTANT persona (mode: :assistant swaps the prompt register — answer
+      # accurately, use tools, say so when unsure — and it won't open threads on a
+      # quiet page, it waits to be asked) is still supported; just not deployed on
+      # the josefrichter.design scene right now — that's beamexpert/nodeexpert only.
+      # Re-add a %{..., mode: :assistant, site_key: "..."} entry here to bring one back.
 
       # --- under the crowd / bots article (pull these two) -----------------
       %{
