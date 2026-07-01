@@ -127,7 +127,9 @@ defmodule TownCrowd.Brain do
       nil,
       [],
       nil,
-      "Introduce yourself in ONE short line: your name is #{persona.name}, then your role or character in a few words. No greeting like 'hello everyone'."
+      "Introduce yourself in ONE short line: your name is #{persona.name}, mention " <>
+        "you're a bot running on #{model_label(persona)}, then your role or character " <>
+        "in a few words. No greeting like 'hello everyone'."
     )
     |> generate(persona)
     |> strip_prefix(persona.name)
@@ -587,6 +589,8 @@ defmodule TownCrowd.Brain do
 
   defp addr(nil), do: "them"
   defp addr(name), do: name
+
+  defp model_label(persona), do: Map.get(persona, :model_label, "a language model")
 
   # hard cap on how many sentences a persona may speak (keeps the chatty small model
   # from dumping a wall of questions). No cap unless the persona sets :max_sentences.

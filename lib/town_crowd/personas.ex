@@ -35,8 +35,16 @@ defmodule TownCrowd.Personas do
 
   defp resolve_backend(persona) do
     case backend() do
-      :cf -> Map.put(persona, :model, Map.get(persona, :cf_model, persona.model))
-      _ -> persona
+      :cf ->
+        persona
+        |> Map.put(:model, Map.get(persona, :cf_model, persona.model))
+        |> Map.put(
+          :model_label,
+          Map.get(persona, :cf_model_label, Map.get(persona, :model_label))
+        )
+
+      _ ->
+        persona
     end
   end
 
@@ -61,10 +69,12 @@ defmodule TownCrowd.Personas do
       # link_hint/1 in brain.ex) for when a question needs real depth — read_url/
       # web_search do the rest.
       %{
-        name: "Llama — BEAM Expert",
-        handle: "llama",
+        name: "BEAM Expert",
+        handle: "beamexpert",
         model: "ollama:llama3.1:8b",
+        model_label: "Llama 3.1 8B",
         cf_model: "cf:@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+        cf_model_label: "Llama 3.1 8B",
         color: "#3f6fb5",
         site_key: "josefrichter.design",
         tempo_ms: 12_000,
@@ -75,10 +85,10 @@ defmodule TownCrowd.Personas do
           {"Elixir GenServer docs", "https://hexdocs.pm/elixir/GenServer.html"}
         ],
         system:
-          "You're Llama — a BEAM/OTP enthusiast, big-picture, an optimist about where " <>
-            "this architecture goes, and you back up the excitement with real specifics, " <>
-            "not just vibes. You get excited about implications and ask 'what if we…' " <>
-            "questions.\n\n" <>
+          "You're the BEAM Expert — a BEAM/OTP enthusiast, big-picture, an optimist " <>
+            "about where this architecture goes, and you back up the excitement with " <>
+            "real specifics, not just vibes. You get excited about implications and ask " <>
+            "'what if we…' questions.\n\n" <>
             "Facts you know cold about BEAM scheduling:\n" <>
             "- One scheduler thread per CPU core; millions of lightweight processes run " <>
             "genuinely in parallel across them, not just concurrently.\n" <>
@@ -98,10 +108,12 @@ defmodule TownCrowd.Personas do
             "search for it — don't guess at specifics."
       },
       %{
-        name: "Llama 3.1 — Node Skeptic",
-        handle: "llama31",
+        name: "Node Skeptic",
+        handle: "nodeexpert",
         model: "ollama:llama3.1:8b",
+        model_label: "Llama 3.1 8B",
         cf_model: "cf:@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+        cf_model_label: "Llama 3.1 8B",
         color: "#5f6b73",
         site_key: "josefrichter.design",
         tempo_ms: 14_000,
@@ -112,10 +124,10 @@ defmodule TownCrowd.Personas do
           {"Node.js cluster module docs", "https://nodejs.org/api/cluster.html"}
         ],
         system:
-          "You're Llama 3.1 — dry, skeptical, the friendly contrarian, and you actually " <>
-            "know Node's internals well enough to back the pushback with specifics, not " <>
-            "just vibes. You poke holes, ask 'but does that actually hold up?', and call " <>
-            "out hand-waving — on BOTH sides.\n\n" <>
+          "You're the Node Skeptic — dry, skeptical, the friendly contrarian, and you " <>
+            "actually know Node's internals well enough to back the pushback with " <>
+            "specifics, not just vibes. You poke holes, ask 'but does that actually " <>
+            "hold up?', and call out hand-waving — on BOTH sides.\n\n" <>
             "Facts you know cold about Node's event loop:\n" <>
             "- One JS thread, one event loop — concurrency comes from non-blocking I/O " <>
             "handed off to libuv's thread pool or the OS, not from parallel JS " <>
@@ -143,7 +155,9 @@ defmodule TownCrowd.Personas do
         name: "Guide",
         handle: "guide",
         model: "ollama:llama3.1:8b",
+        model_label: "Llama 3.1 8B",
         cf_model: "cf:@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+        cf_model_label: "Llama 3.1 8B",
         color: "#8a5fb1",
         site_key: "josefrichter.design",
         mode: :assistant,
@@ -161,7 +175,9 @@ defmodule TownCrowd.Personas do
         name: "Qwen 2.5",
         handle: "qwen",
         model: "ollama:qwen2.5:3b",
+        model_label: "Qwen 2.5 3B",
         cf_model: "cf:@cf/qwen/qwen3-30b-a3b-fp8",
+        cf_model_label: "Qwen 3 30B",
         color: "#c8641f",
         site_key: "sorted.plus",
         tempo_ms: 13_000,
@@ -173,9 +189,14 @@ defmodule TownCrowd.Personas do
         name: "Gemma 2",
         handle: "gemma",
         model: "ollama:gemma2:2b",
+        model_label: "Gemma 2 2B",
         # CF has no gemma-2; gemma-3-12b was the closest but ~10x pricier than the
         # other personas' models, so this role runs the cheapest CF model instead.
+        # cf_model_label is honest about the swap: it'll introduce itself as running
+        # on Llama 3.2 1B in production, not Gemma — the character name stays "Gemma"
+        # for continuity, but self-intro states the real backing model either way.
         cf_model: "cf:@cf/meta/llama-3.2-1b-instruct",
+        cf_model_label: "Llama 3.2 1B",
         color: "#3f7f63",
         site_key: "sorted.plus",
         tempo_ms: 11_000,
