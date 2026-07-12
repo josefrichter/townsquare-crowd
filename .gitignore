@@ -12,3 +12,6 @@ erl_crash.dump
 .env
 # the bots' persisted conversation log
 *.jsonl
+
+# Rust sandbox build artifacts (the built .wasm is committed under priv/wasm/)
+/native/js_sandbox/target/

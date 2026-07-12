@@ -363,6 +363,26 @@ defmodule TownCrowd.Brain do
     }
   ]
 
+  # sandbox tool — only offered to personas with `sandbox: true`. Lets the model author
+  # JavaScript at runtime and run it with no ambient authority (TownCrowd.Sandbox runs it
+  # in a boa JS interpreter compiled to WASM). Use it to compute an exact answer rather
+  # than guessing at arithmetic or string work.
+  @sandbox_tools [
+    %{
+      type: "function",
+      function: %{
+        name: "run_code",
+        description:
+          "Run a snippet of JavaScript in a secure sandbox (no network or file access) to compute an exact answer instead of guessing. The value of the last expression is returned. Example: \"const xs=[3,1,2]; xs.sort((a,b)=>a-b).join(',')\".",
+        parameters: %{
+          type: "object",
+          properties: %{code: %{type: "string", description: "The JavaScript to run"}},
+          required: ["code"]
+        }
+      }
+    }
+  ]
+
   # a persona with a configured corpus also gets the repo tools (search_repo/read_file)
   defp knowledge_root(persona) do
     case Map.get(persona, :knowledge) do
@@ -372,7 +392,9 @@ defmodule TownCrowd.Brain do
   end
 
   defp ollama_tools(persona) do
-    @web_tools ++ if(knowledge_root(persona), do: @repo_tools, else: [])
+    @web_tools ++
+      if(knowledge_root(persona), do: @repo_tools, else: []) ++
+      if(Map.get(persona, :sandbox), do: @sandbox_tools, else: [])
   end
 
   # CF's "traditional function calling" docs describe a flatter shape, but the
@@ -439,6 +461,7 @@ defmodule TownCrowd.Brain do
   defp exec_tool("web_search", %{"query" => q}, _root), do: TownCrowd.Web.search(q)
   defp exec_tool("search_repo", %{"query" => q}, root), do: TownCrowd.Knowledge.search(root, q)
   defp exec_tool("read_file", %{"path" => p}, root), do: TownCrowd.Knowledge.read(root, p)
+  defp exec_tool("run_code", %{"code" => code}, _root), do: TownCrowd.Sandbox.eval(code)
   defp exec_tool(name, _args, _root), do: "unknown tool: #{name}"
 
   # Cloudflare Workers AI (REST). `affinity` is a stable per-bot id sent as

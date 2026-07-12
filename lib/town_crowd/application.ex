@@ -31,6 +31,10 @@ defmodule TownCrowd.Application do
       # One process per bot, supervised and isolated.
       {DynamicSupervisor, name: TownCrowd.BotSup, strategy: :one_for_one},
 
+      # WASM sandbox for the `run_code` tool: compiles the JS interpreter once and
+      # runs model-authored snippets in short-lived, no-authority WASI instances.
+      TownCrowd.Sandbox,
+
       # Reads the persona list and spawns the population.
       TownCrowd.Population,
 

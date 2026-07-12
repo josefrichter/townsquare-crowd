@@ -1,0 +1,16 @@
+[package]
+name = "js_sandbox"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "js_sandbox"
+path = "src/main.rs"
+
+[dependencies]
+boa_engine = "0.20"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

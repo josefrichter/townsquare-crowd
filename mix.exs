@@ -52,7 +52,11 @@ defmodule TownCrowd.MixProject do
       {:req_llm, "~> 1.14"},
       {:bandit, "~> 1.5"},
       {:plug, "~> 1.16"},
-      {:libcluster, "~> 3.3"}
+      {:libcluster, "~> 3.3"},
+      # WASM sandbox for running model-authored skills with no ambient authority
+      # (Wasmtime under the hood). nimble_pool keeps a few warm instances.
+      {:wasmex, "~> 0.14"},
+      {:nimble_pool, "~> 1.1"}
     ]
   end
 end
